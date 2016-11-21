@@ -1,0 +1,9 @@
+".\eeprom.obj",
+".\key.obj",
+".\led.obj",
+".\main.obj",
+".\uart.obj",
+".\process.obj",
+".\crc.obj" 
+TO "910U-P6_V3_4_15W1K16S_20160128" 
+RAMSIZE(256) 

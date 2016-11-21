@@ -1,0 +1,371 @@
+C51 COMPILER V9.52.0.0   MAIN                                                              11/16/2016 13:22:40 PAGE 1   
+
+
+C51 COMPILER V9.52.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN ..\out\main.obj
+COMPILER INVOKED BY: C:\Program Files\kile\C51\BIN\C51.EXE ..\src\main.c OPTIMIZE(8,SPEED) BROWSE INCDIR(..\inc;..\prj;.
+                    -.\src) DEBUG OBJECTEXTEND PRINT(.\main.lst) TABS(2) OBJECT(..\out\main.obj)
+
+line level    source
+
+   1          /*=========================================================
+   2          // 程序功能说明
+   3          // F1:   任务完成亮灯状态，0灭，1红，2绿
+   4          // F2：  任务等待间隔时间，
+   5          // F3：  功能键长按定义，
+   6          // F4：  显示模式，
+   7          
+   8          
+   9          // 程序更改说明
+  10          //  2014年8月6日更改  版本v2.0
+  11          //   1.显示开机版本，显示LED各段方便检测LED好坏。
+  12          //     字库保持原来的基础上把库扩成128的字库，方便以后更改。
+  13          //   2.修正910U_P6的F1，F2，F3，F4均显示F1的错误
+  14          
+  15          //  2014年9月12日更改  版本v2.1
+  16          //   1.非显示字符集、非配置状态(显示数值状态)下，货位号为FF，则灭显示。
+  17          
+  18          //  2014年9月22日更改  版本R3G3 v2.1
+  19          //   1.R3G3 版本，3个绿数码管，3个红LED数码管
+  20          //     用条件R3G3做编译条件，回传参数，灭显示，焦点位变更，数量最大值，均做对应变更
+  21          
+  22          //  2014年10月10日更改  版本R3G3 v2.2
+  23          //   1.PutFinishedToStack()函数超过回显个数的批次数据保存有错
+  24          //   2.增加灯模式0=灭，1=红，2=绿，3=蓝，4=红绿，5=红蓝，6=绿蓝，7=红绿蓝
+  25          //     改led_light_ctrl 函数，对应设置上面8种模式
+  26          //   
+  27          
+  28          
+  29          // 程序更改说明  2014-11-11 V3.0
+  30          1. 把P0，P3，P6，P10整合到一个文件，重新写各模块，优化，变量重新命名，还有宏定义
+  31          2. 单片有STC12C5616AD改用STC15W1K16S
+  32          3. 灯改成7色的，但开机仍然亮3色，F1参数支持7色，F5参数支持7色
+  33          4. 回显存储Bug更改
+  34          5. 库位FF改灭显示
+  35          6. 等待时，关指示灯
+  36          7. 启用F1功能时，因为任务完成后不发清除命令，所以下一次任务有问题，进入不了第一次,改善此
+  37             bug，通过接收任务数码命令置标志，如果该标志为TRUE则认为重发的任务，接收到读取OK键和清除任务信息清此标志
+  38          
+  39          // 程序更改说明  2014-12-15 V3.1
+  40          1. 按键扫描时间缩短为6ms  以前的程序间隔扫描为5ms
+  41          
+  42          // 程序更改说明  2015-01-05 V3.2
+  43          1. 增加820A0，820A2，820A4，820A10S 系列
+  44          2. 单片统一用STC15W1K16S，内含晶振、复位模块，RAM 1K，ROM 16K
+  45          3. 增加边上的OK灯
+  46          4. 取消NULL显示界面
+  47          
+  48          // 程序更改说明  2015-12-15 V3.3
+  49          1.添加组播功能
+  50          // 程序更改说明  2016-1-28 V3.3
+  51          1.配置参数的按键在长按FN键基础上增加按4次>键 ，显示----
+  52          
+  53          // 程序更改说明  2016-7-20 V3.4
+  54          1. 进入配置参数的密码状态，不再接收通讯数据，避免要设置单个标签要停掉整条总线的通讯。
+C51 COMPILER V9.52.0.0   MAIN                                                              11/16/2016 13:22:40 PAGE 2   
+
+  55          2. 新增一个版本P6-910-R6，用F4设置成2，能改成5位显示，取消库位显示。不用此方法
+  56          3. P6系列根据F数值，=2则0库位5数量，否则2库位4数量
+  57          4. 更改F4 = 1时，显示批次号信息对应数码管位置少了个起始位置，非P6显示不准确。
+  58          =========================================================*/
+  59          
+  60          
+  61          #define AP_CPU_GLOBALS  
+  62          #include "extern_symbol.h" 
+  63          
+  64          
+  65          // 开机显示版本号
+  66          #if( (MACHINETYPE == P10_910U)||(MACHINETYPE == P10_910U_R10)||(MACHINETYPE == A10S_820) )
+              INT8U CODE  Version[]={' ',' ',' ','v','3','.','3'};     //3A=0.；3B=1.；3C=2.；3D=3.；3E=4.；3F=5.；
+              #else
+  69          INT8U CODE  Version[]={' ',' ',' ','V',0x3D,'4'};    //3A=0.；3B=1.；3C=2.；3D=3.；3E=4.；3F=5.；
+  70          #endif
+  71          /************************************************************************
+  72          * 编译信息说明
+  73          ************************************************************************/
+  74          #pragma message("Compiled on "__DATE__" at "__TIME__"")     // 提示编译时间及日期
+*** MESSAGE C286 IN LINE 74 OF ..\src\main.c: Compiled on "Nov 16 2016" at "13:22:40"
+  75          
+  76          //#pragma message(""RV_MARKET"")
+  77          //#pragma message(""RV_FIR"")
+  78          //#pragma message(""RV_WIR"")
+  79          //#pragma message(""RV_Debug"")
+  80          #pragma message(""RV_MACHINE"")                  // 提示编译的机型
+*** MESSAGE C286 IN LINE 80 OF ..\src\main.c: " 910U-P0 "
+  81          #pragma message(""RV_MCU"")                    // 提示编译的MCU
+*** MESSAGE C286 IN LINE 81 OF ..\src\main.c: " STC15W1K16S "
+  82          /*******************************************************************************
+  83                      系统参数复位
+  84          *******************************************************************************/
+  85          void sys_data_reset(void)
+  86          {
+  87   1          INT8U i;
+  88   1        
+  89   1          UnfinishTask.num    = 0;       // 未完成任务清0
+  90   1        UnfinishTask.remain = 0;         // 剩余任务清0
+  91   1          FinishTask.num      = 0;       // 已完成任务清0
+  92   1        OsCmdSet.beSettingAddr      = 0;   // 地址设定清0
+  93   1        OsCmdSet.LastSoftGetOkCount = 0;   // 上位机已采集到OK按键次数清0
+  94   1        UnfinishTask.repeat  = FALSE;    // 清重复接收到任务标志
+  95   1      
+  96   1          for(i=0; i< MAX_TASK_NUM; i++)
+  97   1          { //未完成任务块
+  98   2      //        task_unfinish_NO[i]   = 0;    
+  99   2      //        task_un_goods_numH[i] = 0;
+ 100   2      //        task_un_goods_numL[i] = 0; 
+ 101   2          UnfinishTask.info[i].sku = 0;
+ 102   2          UnfinishTask.info[i].count = 0;
+ 103   2              //已完成任务块
+ 104   2      //        task_finished_NO[i]   = 0;    
+ 105   2      //        task_ed_goods_numH[i] = 0;
+ 106   2      //        task_ed_goods_numL[i] = 0;
+ 107   2      //    taks_finished_Full[i] = 0; 
+ 108   2          FinishTask.info[i].sku = 0;
+ 109   2          FinishTask.info[i].count = 0;
+ 110   2          FinishTask.info[i].full = 0;
+ 111   2          }
+ 112   1        
+ 113   1        Disp.f_Loading = LOAD_MODE_OFF;          // 进度条等待显示标志清除
+C51 COMPILER V9.52.0.0   MAIN                                                              11/16/2016 13:22:40 PAGE 3   
+
+ 114   1      //  sys.beWaitNewData   = OFF;         // 等待新数据标志清除
+ 115   1      }
+ 116          
+ 117          /*******************************************************************************
+ 118                      系统显示参数设置
+ 119          *******************************************************************************/
+ 120          void sys_disp_set(void)
+ 121          {
+ 122   1      #if( (MACHINETYPE == P6_910U)||(MACHINETYPE == P6_910U_G3R3)||(MACHINETYPE == P6_920U)||(MACHINETYPE == P6
+             -_920U_G3R3)||(MACHINETYPE == P6_910U_R6) )
+                if( para.str.DispMode == 0X02 ) //字符显示型
+                {
+                  os_disp_set.DispLed_sku       = 0;
+                  os_disp_set.DispLed_count     = 5;
+                  os_disp_set.DispMax_count     = 65536;
+                  os_disp_set.DispLed_first     = 0;
+                  os_disp_set.Chg_Task_Cnt_first  = 0;    
+                }
+                else
+              #endif
+ 133   1        {
+ 134   2          os_disp_set.DispLed_sku       = DIGILED_SKU;
+ 135   2          os_disp_set.DispLed_count     = DIGILED_COUNT;
+ 136   2          os_disp_set.DispMax_count     = DISPLAY_MAX_NUM;
+ 137   2          os_disp_set.DispLed_first     = DIGILED_FIRST;
+ 138   2          os_disp_set.Chg_Task_Cnt_first  = CHG_TASK_COUNT_FIRST;  
+ 139   2        }
+ 140   1      }
+ 141          
+ 142          /*******************************************************************************
+ 143                      1毫秒延迟函数
+ 144          *******************************************************************************/
+ 145          void Delay1Ms() 
+ 146          {
+ 147   1          INT16U i = 852;
+ 148   1      
+ 149   1          while (i != 0) {i--;}
+ 150   1      }
+ 151          
+ 152          /*******************************************************************************
+ 153                      毫秒延迟函数
+ 154              input   usDelay     延迟时间值
+ 155            output  none
+ 156          *******************************************************************************/
+ 157          
+ 158          void DelayMs(UINT16 usDelay)
+ 159          {
+ 160   1          for(; usDelay>0; usDelay--)
+ 161   1          { Delay1Ms(); }   
+ 162   1      }
+ 163          
+ 164          /*******************************************************************************
+ 165                        端口初始化
+ 166          STC12C56XXAD系列单片机所有IO口均可由软件配置成4种工作类型之一，4种类型分别为：
+ 167          准双向口/弱上拉(标准8051输出模式)、强推挽输出/强上拉、仅为输入(高阻)、开漏输出功能。
+ 168          每个口由2个控制寄存器中的相应位控制每个引脚工作类型。上电复位后默认为准双向口/弱上拉(标准8051输出模式)。
+ 169          2V以上为高电平，0.8V以下为低电平。每个IO口驱动能力均可达到20mA，但整个芯片最大不得超过55mA。
+ 170          PXM0[7:0] 和 PXM1[7:0]  2字节设置(X=0,1,2,3..对应P0,P1,P2,P3..) [7:0]对应端口的0到7位
+ 171           0        0 准双向口/弱上拉(标准8051输出模式)，灌电流可达20mA，拉电流150uA~250uA
+ 172           0        1 强推挽输出(强上拉输出,可达20mA，要加限流电阻)
+ 173           1        0 仅为输入（高阻）
+ 174           1        1 开漏（Open Drain），内部上拉电阻断开，要外加
+C51 COMPILER V9.52.0.0   MAIN                                                              11/16/2016 13:22:40 PAGE 4   
+
+ 175          *******************************************************************************/
+ 176          void IO_Init(void)
+ 177          {
+ 178   1        //寄存器配置P2.6=>  BLUE, P2.7=>GREEN;
+ 179   1      //  P2M0 = 0xC0;  
+ 180   1        //寄存器配置P3.7=>RED;  P3.7改成串口 P0.2=>RED
+ 181   1      //  P3M0 = 0x80;  
+ 182   1      //  P0M0 = 0x04;
+ 183   1        //IO状态初始化
+ 184   1        All_Digital_Led_Pwr_OFF();    // 关闭所有数码管电源
+ 185   1      
+ 186   1        // 任务指示灯组初始化
+ 187   1        LED_R_OFF;        //RED_LED    ==> OFF
+ 188   1        LED_G_OFF;        //GREEN_LED  ==> OFF
+ 189   1        LED_B_OFF;        //BLUE_LED   ==> OFF
+ 190   1      
+ 191   1        //UART 收发指示灯IO配置 
+ 192   1        LED_TXT_OFF;
+ 193   1        LED_RXT_OFF;
+ 194   1      }
+ 195          
+ 196          /***************************************************
+ 197              T0定时器初始化
+ 198          ***************************************************/
+ 199          #define TH0_INIT        0xf8
+ 200          #define TL0_INIT        0xcc
+ 201          
+ 202          void InitT0(void)
+ 203          {
+ 204   1          //定时1ms//默认为12T模式=>T0_CLK=SYS_CLK/12=11 059 200 /12 =921600
+ 205   1          TMOD = (TMOD & 0xf0) | 0x01;    //mode 1: 16 bit counter
+ 206   1          TH0  = TH0_INIT;
+ 207   1          TL0  = TL0_INIT;          //这配置是2ms
+ 208   1      
+ 209   1          ET0  = 1;                       //allow interrupt
+ 210   1          TR0  = 1;                       //open timer0
+ 211   1      }
+ 212          
+ 213          /*******************************************************************************
+ 214            定时器T0中断服务程序(2ms中断)
+ 215            Input :   中断向量
+ 216            Output :  sys.flag 置为有效
+ 217          *******************************************************************************/
+ 218          
+ 219          void timer0_int (void) interrupt 1
+ 220          { 
+ 221   1          TH0  = TH0_INIT;
+ 222   1          TL0  = TL0_INIT;  
+ 223   1      
+ 224   1      //  LED_WRN_OFF;
+ 225   1      //    sys.led_scan_flag  = ON;       // 使能数码管刷新
+ 226   1          //串口缓冲区有数据
+ 227   1          if (uart.rIndex != 0)       
+ 228   1          {
+ 229   2              if (uart.rTimer-- == 0) 
+ 230   2              { 
+ 231   3            uart.rFlag  = ON; 
+ 232   3          }
+ 233   2          }
+ 234   1      //  //处理主机下发命令
+ 235   1      //  Cmd_Process();  
+ 236   1      
+C51 COMPILER V9.52.0.0   MAIN                                                              11/16/2016 13:22:40 PAGE 5   
+
+ 237   1        // 定时产生按键扫描标志
+ 238   1        if( (Key.SysCnt++ >= TIMER_COUNT_32ms ) )
+ 239   1        {  Key.f_Enable = TRUE; Key.SysCnt = 0; }         
+ 240   1      
+ 241   1        // 16位定时更新显示缓存计数器，自减1
+ 242   1        if (Disp.TimeRefresh != 0){ Disp.TimeRefresh--; }
+ 243   1      
+ 244   1        // 16位Led 闪烁时间，自减1
+ 245   1        if (led.time_refresh != 0){ led.time_refresh--; }
+ 246   1      
+ 247   1        // 8位数码管 滚屏时间，自减1
+ 248   1        if (Disp.RollDelayCnt != 0){ Disp.RollDelayCnt--; }
+ 249   1      
+ 250   1        // 100ms 计时
+ 251   1        if(os_time.Base_100ms-- == 0)
+ 252   1        {
+ 253   2          os_time.Base_100ms = TIMER_BASE_100MS;
+ 254   2      
+ 255   2          // 单位为100ms
+ 256   2          // 8位超时递减计算器，自减1 //配置状态下 和 作业时修改数值状态下 共用做为超时退出
+ 257   2            if (Disp.TatolTimeRefresh8 != 0){ Disp.TatolTimeRefresh8--; }
+ 258   2          
+ 259   2          // 16位超时递减计算器，自减1  // 进度等待时间
+ 260   2            if (Disp.TatolTimeRefresh16 != 0){ Disp.TatolTimeRefresh16--; }     
+ 261   2        }
+ 262   1      
+ 263   1          //挨个扫描数码管
+ 264   1          led_Scan();
+ 265   1      //  LED_WRN_ON;
+ 266   1      }
+ 267          
+ 268          /*******************************************************************************
+ 269                      开机自检测程序
+ 270              input:   none     
+ 271            output:  none
+ 272          *******************************************************************************/
+ 273          
+ 274          void Start_Init(void)
+ 275          { 
+ 276   1        OsCmdSet.CurDispMode  = DISPMODE_NONE;    // 当前任务状态设为非运行状态
+ 277   1        OsCmdSet.SystemLocked = OFF;        // 锁定系统、解锁系统；默认解锁
+ 278   1        BackTask.num = 0;               // 回显备份区的保存总个数
+ 279   1        os_time.Base_100ms    = TIMER_BASE_100MS; // 基准时间
+ 280   1        Disp.f_Rolling        = ROLL_MODE_OFF;
+ 281   1      
+ 282   1      //  sys.led_scan_flag = ON;   // 使能数码管刷新
+ 283   1        Display_Clear();      // 清除显示 // 包含清除数码管，灯组，清回显标志和配置标志，数值更改标志
+ 284   1      
+ 285   1        sys_data_reset();     // 任务信息初始化
+ 286   1      }
+ 287          
+ 288          /*******************************************************************************
+ 289                        main program        
+ 290          *******************************************************************************/   
+ 291          int main(void) 
+ 292          {   
+ 293   1      
+ 294   1        IO_Init();          //IO口初始化，状态灯初始化
+ 295   1      
+ 296   1        DelayMs(200);       //等待电源稳定
+ 297   1      
+ 298   1        EA = 0;
+C51 COMPILER V9.52.0.0   MAIN                                                              11/16/2016 13:22:40 PAGE 6   
+
+ 299   1        digital_led_cntrl_Init();// 数码管芯片初始化
+ 300   1        InitT0();        // 系统时钟，2ms基准
+ 301   1      
+ 302   1        LoadParaInEeprom();    // 读EEProm  ,判断是否越界，存入Ram     
+ 303   1        sys_disp_set();      // 设置显示窗对应库位位数和数量位数
+ 304   1        UART_Init();       // 串口初始化
+ 305   1        Start_Init();      // 重要数据初始化
+ 306   1                  
+ 307   1        EA = 1;//使能中断
+ 308   1      
+ 309   1        Start_Display();     //完成LED显示8和灯亮
+ 310   1        MAX485_REV_EN;       // 允许接收
+ 311   1        ////////////////////////////main()模块函数说明//////////////////////////// 
+ 312   1        //  1)CMD_led_flash():       3组LED指示灯闪烁控制
+ 313   1        //  2)LedDispBuffRefresh():  数码管显示数据更新
+ 314   1        //  3)Key_Scan():        4个按键扫描及处理  
+ 315   1        //  4)Cmd_Process():    处理主机通过485下传的命令
+ 316   1        /////////////////////////////////////////////////////////////////////////////////////////
+ 317   1        while(1)
+ 318   1        { 
+ 319   2          // 3 组led指示灯闪烁控制
+ 320   2          CMD_led_flash();
+ 321   2          //按键扫描及处理
+ 322   2          Key_Scan();   
+ 323   2          // 数码管数据更新
+ 324   2          LedDispBuffRefresh();           
+ 325   2          //处理主机下发命令
+ 326   2          Cmd_Process();    
+ 327   2        }
+ 328   1      }
+ 329          
+ 330          /*******************************************************************************
+ 331                          END         
+ 332          *******************************************************************************/
+ 333          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    439    ----
+   CONSTANT SIZE    =      6    ----
+   XDATA SIZE       =    387    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     54    ----
+   IDATA SIZE       =     51    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

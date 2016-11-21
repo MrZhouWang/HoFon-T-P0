@@ -1,0 +1,855 @@
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 1   
+
+
+C51 COMPILER V9.52.0.0, COMPILATION OF MODULE PROCESS
+OBJECT MODULE PLACED IN ..\out\process.obj
+COMPILER INVOKED BY: C:\Program Files\kile\C51\BIN\C51.EXE ..\src\process.c OPTIMIZE(8,SPEED) BROWSE INCDIR(..\inc;..\pr
+                    -j;..\src) DEBUG OBJECTEXTEND PRINT(.\process.lst) TABS(2) OBJECT(..\out\process.obj)
+
+line level    source
+
+   1          
+   2          
+   3          #define AP_PROCESS_GLOBALS
+   4          #include "extern_symbol.h"
+   5          
+   6          /*******************************************************************************
+   7                      ÏÔÊ¾ÃüÁî
+   8            input:   none     
+   9            output:  none         
+  10          *******************************************************************************/
+  11          void Display_Info(INT8U XDATA * buf)
+  12          {
+  13   1        UINT8  usReTaskNum,len0;      //±¾´ÎÏÂ·¢µÄ"µç×Ó±êÇ©ÏÔÊ¾ÄÚÈİ"¸öÊı£¬
+  14   1      
+  15   1        UINT8  i = 0,curIndex = 0;
+  16   1        TASK_INFO XDATA *  pt;
+  17   1        
+  18   1        // µÆÁÁµÄ×´Ì¬¡¢Ê±¼ä¡¢Ä£Ê½     uart.rBuffer[8] 
+  19   1        i = * (buf);
+  20   1        //1¡¢ÉÁË¸µÆĞòºÅ
+  21   1      //  led.light_type   = (uart.rBuffer[8] >> 5)&0X07;
+  22   1        led.light_type_BK = (i >> 5)&0X07;    // ±£´æÔÚµÆ×é±¸·İÇøÓòÖĞ
+  23   1        if(Disp.f_Loading == LOAD_MODE_OFF)
+  24   1        { led.light_type  = led.light_type_BK; }        // ·Ç½ø¶ÈÌõÄ£Ê½²Å¸üĞÂµÆ×éÏÔÊ¾Öµ
+  25   1          
+  26   1        //2¡¢ÉÁË¸Ê±¼ä¼ä¸ô
+  27   1        switch((i >> 3)&0X3)
+  28   1        {
+  29   2          case 0:   led.flash_period = 80;    break;
+  30   2          case 1:   led.flash_period = 160;   break;
+  31   2          case 2:   led.flash_period = 320;   break;
+  32   2      //    case 3:   led_flash_period = 640;   break;
+  33   2          default:  led.flash_period = 640;   break;
+  34   2        }
+  35   1        //3¡¢ÉÁË¸Ä£Ê½
+  36   1          led.flash_mode   = (i)&0X07;
+  37   1        //4¡¢ÉÁË¸ÓÃÊı¾İÖÃÎ»£¬Í£Ö¹ÉÁË¸
+  38   1        led.time_refresh = 0;     // ÈÃÉÁË¸Ê±¼äµ½
+  39   1        led.flash_status = 0;     // ÏÈÁÁ
+  40   1      
+  41   1          // ÉÏ´Î²É¼¯µ½°´Å¥ÈÎÎñÊıÁ¿(¸ß4Î»)+±¾´ÎÈÎÎñÊıÁ¿(µÍ4Î») uart.rBuffer[9] 
+  42   1        usReTaskNum = (* (buf+1))&0X0F;   //±¾´ÎÏÂ·¢µÄ"µç×Ó±êÇ©ÏÔÊ¾ÄÚÈİ"¸öÊı£¬ 
+  43   1        // Ê£ÓàÎ´ÏÂ·¢ÈÎÎñÊıÁ¿ uart.rBuffer[10]      
+  44   1        UnfinishTask.remain = * (buf+2);     //±¾´Î×÷ÒµÖĞ»¹Î´ÏÂ·¢µÄ¸öÊı
+  45   1      
+  46   1        UnfinishTask.num = 0;      // Î´Íê³ÉÈÎÎñ¸öÊıÇå0
+  47   1        FinishTask.num   = 0;      // ÒÑÍê³ÉÈÎÎñ¸öÊıÇå0
+  48   1        UnfinishTask.total = usReTaskNum + UnfinishTask.remain;      //¼ÆËã³öÒ»´ÎÈÎÎñ×ÜÊıÁ¿
+  49   1      
+  50   1        BackTask.num   = 0;        // »ØÏÔ±¸·İÇøµÄ±£´æ×Ü¸öÊı
+  51   1        KeyMode.f_BackDisp = OFF;    // »ØÏÔÄ£Ê½±êÖ¾Çå³ı
+  52   1      
+  53   1        //¸ù¾İ±¾´ÎÏÂ·¢ÏÔÊ¾µÄÈÎÎñ¸öÊı½øĞĞĞ­Òé½âÎö
+  54   1      
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 2   
+
+  55   1        //À´1×éĞÂÊı¾İ£¬¿´µ±Ç°Ê£Óà¸öÊı×ö´¦Àí     
+  56   1      
+  57   1        curIndex = 4;         // Êı¾İÎ»ÖÃ
+  58   1        len0     = * (buf+3); //uart.rBuffer[11]; // µÚÒ»¸öµÄĞòÁĞºÅ³¤¶È                 
+  59   1      
+  60   1        // ¶ÔÓ¦µÄÊı×é
+  61   1        pt = &UnfinishTask.info[UnfinishTask.num];    
+  62   1        // Åú´ÎÊı¾İ
+  63   1        (*pt).srcode_len  = len0;
+  64   1        for(i = 0; i < len0; i++)
+  65   1        {
+  66   2          if(i >= MAX_SRCODE_NUM) break;
+  67   2          (*pt).srcode[i] = * (buf + curIndex + i);//uart.rBuffer[curIndex+i];
+  68   2        }
+  69   1        //¿âÎ»ºÅ+ÊıÁ¿
+  70   1        curIndex += len0;     //uart.rBuffer[11]ÎªµÚÒ»¸öĞòÁĞºÅ³¤¶È 
+  71   1      
+  72   1        (*pt).sku  = * (buf + curIndex);//uart.rBuffer[curIndex];   //¿âÎ»ºÅ
+  73   1        (*pt).count  = (INT16U)((*(buf+curIndex+1))*256) + (INT16U)(*(buf+curIndex+2));//(INT16U)(uart.rBuffer[cu
+             -rIndex+1]*256) + (INT16U)uart.rBuffer[curIndex+2];   //ÊıÁ¿
+  74   1      
+  75   1        if(UnfinishTask.num == 0)
+  76   1        { OsCmdSet.TaskCurCount = UnfinishTask.info[0].count ; }    // ±£´æµ±Ç°ÊıÁ¿
+  77   1      
+  78   1        UnfinishTask.num++;
+  79   1      
+  80   1        { SetDispPage(PAGE_RUN); }
+  81   1      }
+  82          
+  83          /*******************************************************************************
+  84                      ×÷ÒµÃüÁî
+  85            input:   none     
+  86            output:  none         
+  87          *******************************************************************************/
+  88          void Commu_Task_Process(void)
+  89          {
+  90   1        UINT8  usReTaskNum,len0,len1;     //±¾´ÎÏÂ·¢µÄ"µç×Ó±êÇ©ÏÔÊ¾ÄÚÈİ"¸öÊı£¬
+  91   1      
+  92   1        UINT8  i = 0,curIndex = 0;
+  93   1        TASK_INFO XDATA *  pt;
+  94   1        //ÏÔÊ¾Êı¾İ»ñÈ¡£¨»õÎ»ºÅ£¬ÊıÁ¿£©
+  95   1        //±¾´ÎÏÂ·¢µÄ"µç×Ó±êÇ©ÏÔÊ¾ÄÚÈİ"¸öÊı£¬     
+  96   1        usReTaskNum = (uart.rBuffer[9])&0X0F;   //±¾´ÎÏÂ·¢µÄ"µç×Ó±êÇ©ÏÔÊ¾ÄÚÈİ"¸öÊı£¬      
+  97   1        //±¾´Î×÷ÒµÖĞ»¹Î´ÏÂ·¢µÄ¸öÊı
+  98   1      //  task_unupdate_num = uart.rBuffer[10];
+  99   1        UnfinishTask.remain = uart.rBuffer[10];    //±¾´Î×÷ÒµÖĞ»¹Î´ÏÂ·¢µÄ¸öÊı
+ 100   1        //ÏÈ³õÊ¼»¯Êı¾İ
+ 101   1        //ÓĞ2×é´ıÏÔÊ¾Êı¾İÏÂÀ´£¬Ôò½«Ô­À´µÄÊı¾İ¶¼³åµô£¬°üÀ¨UNÇøÓëEDÇø
+ 102   1      
+ 103   1        // ÉÏÎ»»úÉÏ´Î²É¼¯µ½OK°´Å¥µÄÈÎÎñÊıÁ¿
+ 104   1        switch(OsCmdSet.LastSoftGetOkCount)
+ 105   1        {
+ 106   2          case 0:     //×÷ÒµÆô¶¯µÄÊ±ºòµÚÒ»´Î·¢
+ 107   2          {
+ 108   3            //»ØÏÔÊı¾İ´¦ÀíÇøÓò£¬ĞÂÀ´Ò»´Î×÷ÒµÈÎÎñµÄÊı¾İ,µ±Ç°ËùÓĞÈÎÎñÏÈÇå³ı(Éè±¸2´ËÖØ¸´½ÓÊÕ´ËÃüÁîÊ±),»ØÏÔÊı¾İÇåÁã
+ 109   3            UnfinishTask.num = 0;      // Î´Íê³ÉÈÎÎñ¸öÊıÇå0
+ 110   3            FinishTask.num   = 0;      // ÒÑÍê³ÉÈÎÎñ¸öÊıÇå0
+ 111   3            UnfinishTask.total = usReTaskNum + UnfinishTask.remain;      //¼ÆËã³öÒ»´ÎÈÎÎñ×ÜÊıÁ¿
+ 112   3      
+ 113   3            BackTask.num   = 0;        // »ØÏÔ±¸·İÇøµÄ±£´æ×Ü¸öÊı
+ 114   3            KeyMode.f_BackDisp = OFF;    // »ØÏÔÄ£Ê½±êÖ¾Çå³ı
+ 115   3            break;
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 3   
+
+ 116   3          }
+ 117   2          case 1:    //×÷ÒµÆô¶¯ºó£¬ÉÏÎ»»ú·¢±¾´ÎÃüÁîÖ®Ç°²É¼¯µ½1×éÍê³ÉµÄÏÔÊ¾
+ 118   2          {
+ 119   3            FinishTask.num--;
+ 120   3            if(FinishTask.num == 1)
+ 121   3            {
+ 122   4              //ºóÍùÇ°Å²
+ 123   4              // µÚÒ»¸öÖ¸ÕëÊÇÒª±£´æÇøµÄµØÖ·£¬µÚ¶ş¸öÖ¸ÕëÊÇÊı¾İÇøµÄµØÖ·
+ 124   4              PutFinishedToStack_Com(&FinishTask.info[0],&FinishTask.info[1]);
+ 125   4              FinishTask.info[0].full = FinishTask.info[1].full;        
+ 126   4            }
+ 127   3            else
+ 128   3            {
+ 129   4              FinishTask.num = 0;
+ 130   4            }
+ 131   3            break;
+ 132   3          }
+ 133   2      //    case 2:    //×÷ÒµÆô¶¯ºó£¬ÉÏÎ»»ú·¢±¾´ÎÃüÁîÖ®Ç°²É¼¯µ½2×éÍê³ÉµÄÏÔÊ¾
+ 134   2      //    {
+ 135   2      //      task_finished_num = 0;
+ 136   2      //      break;
+ 137   2      //    }
+ 138   2          default:
+ 139   2          {
+ 140   3            FinishTask.num = 0;
+ 141   3            break;
+ 142   3          }
+ 143   2        }
+ 144   1      
+ 145   1        //¸ù¾İ±¾´ÎÏÂ·¢ÏÔÊ¾µÄÈÎÎñ¸öÊı½øĞĞĞ­Òé½âÎö
+ 146   1        switch(usReTaskNum)
+ 147   1        {
+ 148   2          case 1:   //À´1×éĞÂÊı¾İ£¬¿´µ±Ç°Ê£Óà¸öÊı×ö´¦Àí
+ 149   2          {     
+ 150   3            // Ê£Óà0¸ö»ò2¸ö¶¼±£´æÔÚ0×é£¬Ê£Óà1¸öÔò±£´æÔÚ1×é
+ 151   3            if(UnfinishTask.num >= MAX_TASK_NUM)
+ 152   3            { UnfinishTask.num = 0; }
+ 153   3      
+ 154   3            pt = &UnfinishTask.info[UnfinishTask.num];
+ 155   3            if(uart.rBuffer[5] == 0X00)     //Ã»ÓĞĞòÁĞºÅµÄĞ­Òé
+ 156   3            {
+ 157   4              curIndex = 11;          // Êı¾İÎ»ÖÃ
+ 158   4              len0     = 0;                   // Åú´Î³¤¶ÈÎª0
+ 159   4            }
+ 160   3            else if(uart.rBuffer[5] == 0X01)  //´øĞòÁĞºÅµÄĞ­Òé
+ 161   3            { 
+ 162   4              curIndex = 12;          // Êı¾İÎ»ÖÃ
+ 163   4              len0     = uart.rBuffer[11];  // µÚÒ»¸öµÄĞòÁĞºÅ³¤¶È                 
+ 164   4            }
+ 165   3            
+ 166   3            // Åú´ÎÊı¾İ
+ 167   3            (*pt).srcode_len  = len0;
+ 168   3            for(i = 0; i < len0; i++)
+ 169   3            {
+ 170   4              if(i >= MAX_SRCODE_NUM) break;
+ 171   4              (*pt).srcode[i] = uart.rBuffer[curIndex+i];
+ 172   4            }
+ 173   3            //¿âÎ»ºÅ+ÊıÁ¿
+ 174   3            curIndex += len0;     //uart.rBuffer[11]ÎªµÚÒ»¸öĞòÁĞºÅ³¤¶È 
+ 175   3      
+ 176   3            (*pt).sku  = uart.rBuffer[curIndex];    //¿âÎ»ºÅ
+ 177   3            (*pt).count  = (INT16U)(uart.rBuffer[curIndex+1]*256) + (INT16U)uart.rBuffer[curIndex+2];  //ÊıÁ¿
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 4   
+
+ 178   3      
+ 179   3            if(UnfinishTask.num == 0)
+ 180   3            { OsCmdSet.TaskCurCount = UnfinishTask.info[0].count ; }    // ±£´æµ±Ç°ÊıÁ¿
+ 181   3      
+ 182   3            UnfinishTask.num++;
+ 183   3            break;
+ 184   3          }
+ 185   2          case 2:   //À´2×éĞÂÊı¾İ£¬Ô­ÏÈµÄ¶¼³åµô£¬È«²¿½ÓÊÕ
+ 186   2          {
+ 187   3            if(uart.rBuffer[5] == 0X00)     //Ã»ÓĞĞòÁĞºÅµÄĞ­Òé
+ 188   3            {
+ 189   4              curIndex = 11;          // Êı¾İÎ»ÖÃ
+ 190   4              len0      = 0;                   // µÚ1¸öÅú´Î³¤¶ÈÎª0
+ 191   4              len1      = 0;                   // µÚ2¸öÅú´Î³¤¶ÈÎª0
+ 192   4            }
+ 193   3            else if(uart.rBuffer[5] == 0X01)  //´øĞòÁĞºÅµÄĞ­Òé
+ 194   3            { 
+ 195   4              curIndex = 12;          // Êı¾İÎ»ÖÃ
+ 196   4              len0     = uart.rBuffer[11];  // µÚ1¸öµÄĞòÁĞºÅ³¤¶È  
+ 197   4              len1     = uart.rBuffer[6] - len0 - 11; // µÚ2¸öµÄĞòÁĞºÅ³¤¶È                      
+ 198   4            }     
+ 199   3            // ±£´æµÚ1¸öÅú´ÎĞÅÏ¢
+ 200   3            UnfinishTask.info[0].srcode_len = len0;
+ 201   3            for(i = 0; i < len0; i++)
+ 202   3            {
+ 203   4              if(i >= MAX_SRCODE_NUM) break;
+ 204   4              UnfinishTask.info[0].srcode[i] = uart.rBuffer[curIndex+i];
+ 205   4            }
+ 206   3            //¿âÎ»ºÅ1+ÊıÁ¿1
+ 207   3            curIndex += len0;     //uart.rBuffer[11]ÎªµÚÒ»¸öĞòÁĞºÅ³¤¶È
+ 208   3            UnfinishTask.info[0].sku   = uart.rBuffer[curIndex];                           //¿âÎ»ºÅ
+ 209   3            UnfinishTask.info[0].count = (INT16U)(uart.rBuffer[curIndex+1]*256) + (INT16U)uart.rBuffer[curIndex+2];
+             -   //ÊıÁ¿
+ 210   3                          
+ 211   3            //ĞòÁĞºÅ2
+ 212   3            curIndex += 3;
+ 213   3            UnfinishTask.info[1].srcode_len = len1;
+ 214   3            for(i = 0; i < len1; i++)
+ 215   3            {
+ 216   4              if(i >= MAX_SRCODE_NUM) break;
+ 217   4              UnfinishTask.info[1].srcode[i] = uart.rBuffer[curIndex+i];
+ 218   4            }
+ 219   3            //¿âÎ»ºÅ2+ÊıÁ¿2
+ 220   3            curIndex += len1;     //uart.rBuffer[11]ÎªµÚÒ»¸öĞòÁĞºÅ³¤¶È
+ 221   3            UnfinishTask.info[1].sku   = uart.rBuffer[curIndex];                           //¿âÎ»ºÅ
+ 222   3            UnfinishTask.info[1].count = (INT16U)(uart.rBuffer[curIndex+1]*256) + (INT16U)uart.rBuffer[curIndex+2];
+             -   //ÊıÁ¿
+ 223   3            OsCmdSet.TaskCurCount = UnfinishTask.info[0].count ;         // ±£´æµ±Ç°ÊıÁ¿
+ 224   3            UnfinishTask.num = 2;
+ 225   3            break;
+ 226   3          }
+ 227   2          default:    break;
+ 228   2        }
+ 229   1      
+ 230   1        //1¡¢ÉÁË¸µÆĞòºÅ
+ 231   1      //  led.light_type   = (uart.rBuffer[8] >> 5)&0X07;
+ 232   1        led.light_type_BK = (uart.rBuffer[8] >> 5)&0X07;    // ±£´æÔÚµÆ×é±¸·İÇøÓòÖĞ
+ 233   1        if(Disp.f_Loading == LOAD_MODE_OFF)
+ 234   1        { led.light_type    = led.light_type_BK; }        // ·Ç½ø¶ÈÌõÄ£Ê½²Å¸üĞÂµÆ×éÏÔÊ¾Öµ
+ 235   1          
+ 236   1        //2¡¢ÉÁË¸Ê±¼ä¼ä¸ô
+ 237   1        switch((uart.rBuffer[8] >> 3)&0X3)
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 5   
+
+ 238   1        {
+ 239   2          case 0:   led.flash_period = 80;    break;
+ 240   2          case 1:   led.flash_period = 160;   break;
+ 241   2          case 2:   led.flash_period = 320;   break;
+ 242   2      //    case 3:   led_flash_period = 640;   break;
+ 243   2          default:  led.flash_period = 640;   break;
+ 244   2        }
+ 245   1        //3¡¢ÉÁË¸Ä£Ê½
+ 246   1          led.flash_mode   = (uart.rBuffer[8])&0X07;
+ 247   1        //4¡¢ÉÁË¸ÓÃÊı¾İÖÃÎ»£¬Í£Ö¹ÉÁË¸
+ 248   1        led.time_refresh = 0;     // ÈÃÉÁË¸Ê±¼äµ½
+ 249   1        led.flash_status = 0;     // ÏÈÁÁ
+ 250   1      
+ 251   1        //5¡¢½ø¶ÈÌõÄ£Ê½ÏÂ´¦Àí
+ 252   1        // ³¤µÈ´ıÔò´¦Àí
+ 253   1        if(Disp.f_Loading == LOAD_MODE_LONG)
+ 254   1        { 
+ 255   2          INT16U   LoadCount,MinWaitTime;
+ 256   2      
+ 257   2          //µÈ´ıÊ±¼ä > ×îĞÂµÈ´ıÊ±¼ä,Ö±½ÓÁÁµÆÏÔÊ¾Êı¾İ
+ 258   2          LoadCount   = DIGITAL_LED_LOAD_TIME_LONG - Disp.TatolTimeRefresh16;
+ 259   2      //    MinWaitTime = (para.str.WtTime+1)*100;
+ 260   2          MinWaitTime = (para.str.WtTime+1);
+ 261   2          //µÈ´ıÊ±¼ä > ×îĞÂµÈ´ıÊ±¼ä,Ö±½ÓÁÁµÆÏÔÊ¾Êı¾İ
+ 262   2          if(LoadCount >= MinWaitTime)
+ 263   2          {
+ 264   3            Disp.f_Loading    = LOAD_MODE_OFF;      // ½áÊøµÈ´ı½ø¶ÈÌõ
+ 265   3            led.light_type    = led.light_type_BK;    // »Ö¸´Ô­ÏÈÊ¹ÓÃµÄµÆ×é
+ 266   3          } 
+ 267   2          //µÈ´ıÊ±¼ä»¹Ã»µ½×îĞ¡µÈ´ıÊ±¼ä£¬Ôò¼ÌĞøµÈ´ıµ½×îĞ¡Ê±¼äºó²ÅÁÁµÆÏÔÊ¾
+ 268   2          else
+ 269   2          {
+ 270   3            Disp.TatolTimeRefresh16  = MinWaitTime - LoadCount;
+ 271   3          }         
+ 272   2        }
+ 273   1        //·Ç½ø¶ÈÄ£Ê½ÏÂÌõ¿ØÖÆ
+ 274   1        if(Disp.f_Loading == LOAD_MODE_OFF)
+ 275   1        { SetDispPage(PAGE_RUN); }
+ 276   1      }
+ 277          
+ 278          /*******************************************************************************
+ 279                      ¶Ô¶à×Ö½Ú¶ÁÃüÁîÏìÓ¦
+ 280            input:   none     
+ 281            output:  none         
+ 282          *******************************************************************************/
+ 283          //Ó¦´ğModbus 0x03ºÅ²É¼¯°´Å¥ÃüÁî
+ 284          void ACK_Multi_Read(void)
+ 285          {
+ 286   1        UINT8   addr;
+ 287   1        UINT16  usCRC;
+ 288   1          
+ 289   1        UnfinishTask.repeat = FALSE;          // ÇåÖØ¸´½ÓÊÕµ½ÈÎÎñ±êÖ¾    
+ 290   1        addr    = para.str.address;//address[0] * 100 + address[1]*10 + address[2];    
+ 291   1      
+ 292   1        uart.wBuffer[0] = addr;                         //addr
+ 293   1        uart.wBuffer[1] = 0x03;                         //function code
+ 294   1          uart.wLen       = 2;    
+ 295   1        if(OsCmdSet.CurDispMode == DISPMODE_NONE)   //??0Ä£Ê½ÏÂ£¬Ó¦¸ÃÎŞ²É¼¯ÃüÁî
+ 296   1        {  // µ±Ç°ÈÎÎñ×´Ì¬Îª·ÇÔËĞĞ×´Ì¬
+ 297   2          uart.wBuffer[2] = 0x00;                     //n byte  
+ 298   2                
+ 299   2          usCRC = CRC16(uart.wBuffer, 3);
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 6   
+
+ 300   2          uart.wBuffer[3] = (UINT8)usCRC;
+ 301   2          uart.wBuffer[4] = (UINT8)(usCRC>>8);
+ 302   2          uart.wLen       = 5;          
+ 303   2        }
+ 304   1        else if(OsCmdSet.CurDispMode == DISPMODE_TASK)
+ 305   1        { // µ±Ç°ÈÎÎñ×´Ì¬ÉèÎªÔËĞĞ×´Ì¬
+ 306   2          //±¾´Î×÷ÒµµÄ×îºóÒ»×éÊı¾İ£¬ÔòĞèÒªËùÓĞ¶¼Ê°È¡Íê±ÏºóÔÙÉÏ´«Êı¾İ,Ô­ÒòÈçÏÂ£º
+ 307   2          //×îºóÒ»×éÊı¾İ£¬Èç¹ûÓĞ2¸ö´ıÏÔÊ¾£¬Èç¹ûµÚÒ»¸öÏÔÊ¾Íê±Ï²¢ÇÒÒÑ¾­°´ÏÂOK¼ü£¬´ËÊ±±êÇ©ÏÔÊ¾µÚ¶ş¸ö£¬´ËÊ±ÉÏÎ»»úÑ¯ÎÊ±
+             -êÇ©ÊÇ·ñÒÑ¾­°´ÏÂOK¼ü
+ 308   2          //´ËÊ±Êµ¼ÊÒÑ¾­°´ÏÂÒ»¸öOK¼ü£¬Éè±¸»Ø´ğ°´ÏÂÒ»¸ö£¬ÉÏÎ»»ú»á¼ÌĞøÑ¯ÎÊÊÇ·ñ°´ÏÂOK¼ü£¨ÒòÎªÉè±¸»¹ÓĞÏÂÒ»¸öÈÎÎñ£©£¬´Ë
+             -Ê±±êÇ©¸Ã»Ø´ğ£¿£¿
+ 309   2          //µ«ÊÇÈÎÎñ¹ı³ÌÖĞ£¬ÉÏÎ»»úÑ¯ÎÊµ½±êÇ©ÒÑ¾­°´ÏÂOK¼üºó£¬»á²¹·¢ÏÂÒ»µÀÃüÁî£¬ÔÚÏÂÒ»µÀÃüÁîµ½´ï±êÇ©Ö®Ç°£¬ÊÇ²»»áÓĞ²É
+             -¼¯OK¼üÃüÁîµ½´ïµÄ£¬
+ 310   2          //Òò´Ë¿ÉÒÔ¿ØÖÆ£¬µ«ÊÇ£¬×îºó2×éÎŞ·¨Èç´Ë¿ØÖÆ£¬Òò´Ë±ØĞëÒ»ÆğÉÏ´«
+ 311   2          if(FinishTask.num == 0)        
+ 312   2          {  // Ã»ÓĞ°´ÏÂ
+ 313   3            uart.wBuffer[2] = 0x02;                         //n byte    
+ 314   3        
+ 315   3            uart.wBuffer[3] = DISPMODE_TASK;                        
+ 316   3            uart.wBuffer[4] = 0X00;                    
+ 317   3        
+ 318   3            usCRC = CRC16(uart.wBuffer, 5);
+ 319   3            uart.wBuffer[5] = (UINT8)usCRC;
+ 320   3            uart.wBuffer[6] = (UINT8)(usCRC>>8);
+ 321   3            uart.wLen       = 7;                            
+ 322   3          }
+ 323   2          else  if(FinishTask.num == 1)
+ 324   2          { // 1¸ö°´ÏÂ
+ 325   3            uart.wBuffer[2] = 0x04;                         //n byte    
+ 326   3        
+ 327   3            uart.wBuffer[3] = DISPMODE_TASK;                        
+ 328   3            uart.wBuffer[4] = ((FinishTask.info[0].full<<4)|FinishTask.num); //((taks_finished_Full[0]<<4)|FinishTa
+             -sk.num);    
+ 329   3            uart.wBuffer[5] = FinishTask.info[0].count/256; //task_ed_goods_numH[0];                        
+ 330   3            uart.wBuffer[6] = (INT8U)FinishTask.info[0].count;//task_ed_goods_numL[0];    
+ 331   3                        
+ 332   3            usCRC = CRC16(uart.wBuffer, 7);
+ 333   3            uart.wBuffer[7] = (UINT8)usCRC;
+ 334   3            uart.wBuffer[8] = (UINT8)(usCRC>>8);
+ 335   3            uart.wLen       = 9;                            
+ 336   3          }
+ 337   2          else  if(FinishTask.num == 2)
+ 338   2          { // 2¸ö°´ÏÂ
+ 339   3            uart.wBuffer[2] = 0x06;                         //n byte    
+ 340   3        
+ 341   3            uart.wBuffer[3] = DISPMODE_TASK;                        
+ 342   3            uart.wBuffer[4] = ((FinishTask.info[1].full<<4)|FinishTask.num); //((taks_finished_Full[1]<<4)|FinishTa
+             -sk.num);    
+ 343   3            uart.wBuffer[5] = FinishTask.info[0].count/256; //task_ed_goods_numH[0];                        
+ 344   3            uart.wBuffer[6] = (INT8U)FinishTask.info[0].count;//task_ed_goods_numL[0];    
+ 345   3            uart.wBuffer[7] = FinishTask.info[1].count/256; //task_ed_goods_numH[1];                        
+ 346   3            uart.wBuffer[8] = (INT8U)FinishTask.info[1].count;//task_ed_goods_numL[1];    
+ 347   3                        
+ 348   3            usCRC = CRC16(uart.wBuffer, 9);
+ 349   3            uart.wBuffer[9] = (UINT8)usCRC;
+ 350   3            uart.wBuffer[10] = (UINT8)(usCRC>>8);
+ 351   3            uart.wLen       = 11;                            
+ 352   3          }
+ 353   2        }       
+ 354   1        SendSerialByte((UINT8 *)uart.wBuffer, uart.wLen); 
+ 355   1      }
+ 356          
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 7   
+
+ 357          void ACK_Multi_ReadTestAddr(void)
+ 358          {
+ 359   1        UINT8   addr;
+ 360   1        UINT16  usCRC;
+ 361   1              
+ 362   1        addr    = para.str.address;//address[0] * 100 + address[1]*10 + address[2];    
+ 363   1      
+ 364   1        uart.wBuffer[0] = addr;                         //addr
+ 365   1        uart.wBuffer[1] = 0x03;                         //function code
+ 366   1        uart.wBuffer[2] = 0x00;                       //Len
+ 367   1        usCRC = CRC16(uart.wBuffer, 3);
+ 368   1        uart.wBuffer[3] = (UINT8)usCRC;
+ 369   1        uart.wBuffer[4] = (UINT8)(usCRC>>8);
+ 370   1        uart.wLen   = 5;                            
+ 371   1        SendSerialByte((UINT8 *)uart.wBuffer, uart.wLen); 
+ 372   1      }
+ 373          /*******************************************************************************
+ 374                      ¶Ô¶à×Ö½ÚĞ´ÃüÁîÕı³£ÏìÓ¦
+ 375            input:   none     
+ 376            output:  none         
+ 377          *******************************************************************************/
+ 378          void ACK_Single_Write(void)
+ 379          {
+ 380   1        SendSerialByte((UINT8 *)uart.rBuffer, uart.rIndex); 
+ 381   1      }
+ 382          /*******************************************************************************
+ 383                      ¶Ô¶à×Ö½ÚĞ´ÃüÁî´íÎóµÄÏìÓ¦
+ 384            input:   none     
+ 385            output:  none         
+ 386          *******************************************************************************/
+ 387          void ACK_Multi_Write_RepeatError(void)
+ 388          {
+ 389   1        UINT8   addr    = para.str.address;//address[0] * 100 + address[1]*10 + address[2];
+ 390   1        UINT16  usCRC;
+ 391   1      
+ 392   1        uart.wBuffer[0] = addr;                         //addr
+ 393   1        uart.wBuffer[1] = 0x90;                         //ERROR code
+ 394   1        uart.wBuffer[2] = OsCmdSet.LastSoftGetOkCount;                       
+ 395   1      
+ 396   1        usCRC = CRC16(uart.wBuffer, 3);
+ 397   1      
+ 398   1        uart.wBuffer[3] = (UINT8)usCRC;
+ 399   1        uart.wBuffer[4] = (UINT8)(usCRC>>8);
+ 400   1      
+ 401   1        uart.wLen        = 5; 
+ 402   1        SendSerialByte((UINT8 *)uart.wBuffer, uart.wLen); 
+ 403   1      }
+ 404          /*******************************************************************************
+ 405                      ¶Ô¶à×Ö½ÚĞ´ÃüÁîÕı³£ÏìÓ¦
+ 406            input:   none     
+ 407            output:  none         
+ 408          *******************************************************************************/
+ 409          void ACK_Multi_Write(void)
+ 410          {
+ 411   1        UINT8   addr    = para.str.address;//address[0] * 100 + address[1]*10 + address[2];
+ 412   1        UINT16  usCRC;
+ 413   1      
+ 414   1        uart.wBuffer[0] = addr;                         //addr
+ 415   1        uart.wBuffer[1] = 0x10;                         //function code
+ 416   1        uart.wBuffer[2] = 0x00;                         //start addr
+ 417   1        uart.wBuffer[3] = 0x00;
+ 418   1        uart.wBuffer[4] = 0x00;
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 8   
+
+ 419   1        uart.wBuffer[5] = 0x05;
+ 420   1      
+ 421   1        usCRC = CRC16(uart.wBuffer, 6);
+ 422   1      
+ 423   1        uart.wBuffer[6] = (UINT8)usCRC;
+ 424   1        uart.wBuffer[7] = (UINT8)(usCRC>>8);
+ 425   1      
+ 426   1        uart.wLen        = 8; 
+ 427   1        SendSerialByte((UINT8 *)uart.wBuffer, uart.wLen); 
+ 428   1      }
+ 429          /*******************************************************************************
+ 430            input:   none     
+ 431            output:  none         
+ 432          *******************************************************************************/
+ 433          void ResetAddr(void)
+ 434          {
+ 435   1        //ÏÔÊ¾Çå³ı,Êı¾İ¸´Î»
+ 436   1        Display_Clear();         // Çå³ıÏÔÊ¾ // °üº¬Çå³ıÊıÂë¹Ü£¬µÆ×é£¬Çå»ØÏÔ±êÖ¾ºÍÅäÖÃ±êÖ¾£¬ÊıÖµ¸ü¸Ä±êÖ¾
+ 437   1        sys_data_reset();
+ 438   1        //µØÖ·ÇåÁã
+ 439   1      //  address[0] = 0;   address[1] = 0;   address[2] = 0;
+ 440   1        para.str.address = 0;
+ 441   1        SaveParaToBlock();
+ 442   1      }
+ 443          /*******************************************************************************
+ 444            input:   none     
+ 445            output:  none         
+ 446          *******************************************************************************/
+ 447          void DiscodeProtocalV1(void)
+ 448          {
+ 449   1        UINT8   addr    = para.str.address;//address[0] * 100 + address[1]*10 + address[2];
+ 450   1        UINT16  usCRC, retCRC;
+ 451   1      //  UINT16 usValue = 0;
+ 452   1        UINT8 i = 0;
+ 453   1      
+ 454   1        retCRC = CRC16    (uart.rBuffer, uart.rIndex-2);    //CRC
+ 455   1        usCRC  = (UINT16) (uart.rBuffer [uart.rIndex-2]);   //CRC_L;
+ 456   1        usCRC += (UINT16) (uart.rBuffer [uart.rIndex-1]<<8);  //CRC_H
+ 457   1      
+ 458   1        if (retCRC == usCRC)            //crcĞ£Ñé³É¹¦ 
+ 459   1        {
+ 460   2      //      p_led_rxd = 0;
+ 461   2          LED_RXT_ON;                // µãÁÁ½ÓÊÕLEDµÆ
+ 462   2          //0ºÅ¹ã²¥ÃüÁîµØÖ·£¬²»Ğè»Ø¸´
+ 463   2          if(uart.rBuffer[0] == 0x00 && uart.rBuffer[1] == 0X06 && uart.rIndex == 8)  
+ 464   2          {
+ 465   3            //00 06 ?? 00 ?? ?? CRCH CRCL
+ 466   3            if(uart.rBuffer[3] == 0X00)           //µØÖ·ÇåÁã
+ 467   3            { ResetAddr(); }
+ 468   3            //00 06 ?? 01 ?? ## CRCH CRCL
+ 469   3            else if(uart.rBuffer[3] == 0X01)        //½ÓÊÕµØÖ·£¬²¢ÏÔÊ¾£¬½øÈëµÈ´ı°´¼üÈ·ÈÏ
+ 470   3            {
+ 471   4              if(OsCmdSet.beSettingAddr != 0X02)      // Î´»Ø¸´µØÖ·Éè¶¨
+ 472   4              {
+ 473   5                OsCmdSet.beSettingAddr = 1;       // ½øÈëµØÖ·Éè¶¨
+ 474   5      //          toSettedAddr = uart.rBuffer[5];;
+ 475   5                para_bk.str.address = uart.rBuffer[5];  // °ÑÉè¶¨µØÖ·´æÈë±¸·İÇø
+ 476   5                //ÉèÖÃ¸üĞÂĞÅÏ¢£¬ÏÔÊ¾µØÖ·Éè¶¨ÌáÊ¾
+ 477   5                led.light_type = LED_GREEN;       // ½ÓÊÕÇ°ÁÁµÚÒ»×éµÆ£¬½ÓÊÕºóÁÁµÚ¶ş×éµÆ
+ 478   5                led.flash_mode = LED_FLASH_MODE_ALWAYS; // ³£ÁÁÄ£Ê½
+ 479   5      
+ 480   5                SetDispPage(PAGE_CFGADDR);        // ÉèÖÃÏÔÊ¾Ò³ÃæÎªµØÖ·ÏÔÊ¾
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 9   
+
+ 481   5              }
+ 482   4            }
+ 483   3            //0X10¶Î  ¹ã²¥ÏÔÊ¾
+ 484   3            //00 06 ?? 10 ## ## CRCH CRCL
+ 485   3            else if(uart.rBuffer[3] == 0X10)        //¹ã²¥ÏÔÊ¾ÃüÁî,Èç¹û## ## == 0X00 0X00£¬ÔòÏÔÊ¾µØÖ·
+ 486   3            {
+ 487   4              Disp.Value  = ((UINT16)(uart.rBuffer[4])) *256 + (UINT16)(uart.rBuffer[5]);
+ 488   4      
+ 489   4              for (i = 0; i < MAX_CFGPARA; i++)
+ 490   4              {       
+ 491   5                para_bk.Byte[i] = para.Byte[i];          // ±£´æÈë±¸·İÇø
+ 492   5              }
+ 493   4                //¸ù¾İ²ÎÊıÏÔÊ¾²ÎÊı
+ 494   4              if(Disp.Value == 0X00)
+ 495   4              { SetDispPage(PAGE_CFGADDR);  }        //ÏÔÊ¾µØÖ·
+ 496   4              else if(Disp.Value == 10001)
+ 497   4              { SetDispPage(PAGE_CFGFUNC1); }        //ÏÔÊ¾F1 ²ÎÊı
+ 498   4              else if(Disp.Value == 10002)
+ 499   4              { SetDispPage(PAGE_CFGFUNC2); }        //ÏÔÊ¾F2 ²ÎÊı
+ 500   4              else if(Disp.Value == 10003)
+ 501   4              { SetDispPage(PAGE_CFGFUNC3); }        //ÏÔÊ¾F3 ²ÎÊı
+ 502   4              else if(Disp.Value == 10004)
+ 503   4              { SetDispPage(PAGE_CFGFUNC4); }        //ÏÔÊ¾F4 ²ÎÊı
+ 504   4              else if(Disp.Value == 10005)
+ 505   4              { SetDispPage(PAGE_CFGFUNC5); }        //ÏÔÊ¾F5 ²ÎÊı
+ 506   4              else
+ 507   4              { SetDispPage(PAGE_NULL); }          // ³ö´íÏÔÊ¾
+ 508   4      
+ 509   4              led.light_type = LED_GREEN;         // Ö¸Ê¾µÆ
+ 510   4              led.flash_mode = LED_FLASH_MODE_ALWAYS;   // ³£ÁÁÄ£Ê½
+ 511   4            }
+ 512   3            //00 06 ?? 11 ?? ?? CRCH CRCL
+ 513   3            else if(uart.rBuffer[3] == 0X11)        //¹ã²¥Çå³ı
+ 514   3            {
+ 515   4              Display_Clear();               // Çå³ıÏÔÊ¾ // °üº¬Çå³ıÊıÂë¹Ü£¬µÆ×é£¬Çå»ØÏÔ±êÖ¾ºÍÅäÖÃ±êÖ¾£¬ÊıÖµ¸ü¸Ä±êÖ¾
+ 516   4              sys_data_reset();              // Çå³ıÈÎÎñĞÅÏ¢Çø
+ 517   4            }
+ 518   3            //0X20¶Î  ¹ã²¥´æ´¢¶Î
+ 519   3            //00 06 ?? 20 ?? ## CRCH CRCL
+ 520   3            else if(uart.rBuffer[3] == 0X20)        //¹ã²¥ÉèÖÃ²ÎÊı1(±êÇ©¶ÔÓ¦¼ğ»õÈÎÎñÍê³ÉºóÁÁµÆÄ£Ê½)
+ 521   3            {
+ 522   4              para.str.FinishedLED  = uart.rBuffer[5];   // Ğ´Èë²ÎÊı
+ 523   4              SetDispPage(PAGE_CFGFUNC1);          // ÉèÖÃÏÔÊ¾Ò³ÃæÎªF1ÏÔÊ¾
+ 524   4      
+ 525   4              led.light_type = para.str.FinishedLED;    // °ÑÖ¸Ê¾µÆ¸Ä³ÉF1²ÎÊıÁÁµÄÄ£Ê½
+ 526   4              led.flash_mode = LED_FLASH_MODE_ALWAYS;    // ³£ÁÁÄ£Ê½        
+ 527   4              SaveParaToBlock();               // ¶Ô²ÎÊı×öÅĞ¶Ï        
+ 528   4            }
+ 529   3            //00 06 ?? 21 ?? ## CRCH CRCL
+ 530   3            else if(uart.rBuffer[3] == 0X21)        //¹ã²¥ÉèÖÃ²ÎÊı2(Ò»¶Ô¶àÈÎÎñÊ±£¬½ø¶ÈÌõµÈ´ıÊ±¼ä)
+ 531   3            {
+ 532   4              para.str.WtTime = uart.rBuffer[5];      // Ğ´Èë²ÎÊı
+ 533   4              SetDispPage(PAGE_CFGFUNC2);         // ÉèÖÃÏÔÊ¾Ò³ÃæÎªF2ÏÔÊ¾
+ 534   4              
+ 535   4              led.light_type = LED_GREEN ;             // ÁÁµÄÄ£Ê½
+ 536   4              led.flash_mode = LED_FLASH_MODE_1V1;     // ³£ÁÁÄ£Ê½
+ 537   4              led.time_refresh = 0;           // ÈÃÉÁË¸Ê±¼äµ½
+ 538   4              led.flash_status = 0;           // ÏÈÁÁ
+ 539   4              led.flash_period = 100;           // ÉÁË¸Ê±¼ä»ù×¼
+ 540   4              SaveParaToBlock();              // ¶Ô²ÎÊı×öÅĞ¶Ï       
+ 541   4            }
+ 542   3            //00 06 ?? 22 ?? ## CRCH CRCL
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 10  
+
+ 543   3            else if(uart.rBuffer[3] == 0X22)        //¹ã²¥ÉèÖÃ²ÎÊı3(¹¦ÄÜ¼üÉè¶¨)
+ 544   3            {       
+ 545   4              para.str.FnDefine = uart.rBuffer[5];     // Ğ´Èë²ÎÊı
+ 546   4              SetDispPage(PAGE_CFGFUNC3);          // ÉèÖÃÏÔÊ¾Ò³ÃæÎªF3ÏÔÊ¾
+ 547   4      
+ 548   4              led.light_type = LED_GREEN ;             // ÁÁµÄÄ£Ê½
+ 549   4              led.flash_mode = LED_FLASH_MODE_1V1;     // ³£ÁÁÄ£Ê½
+ 550   4              led.time_refresh = 0;           // ÈÃÉÁË¸Ê±¼äµ½
+ 551   4              led.flash_status = 0;           // ÏÈÁÁ
+ 552   4              led.flash_period = 100;           // ÉÁË¸Ê±¼ä»ù×¼
+ 553   4              SaveParaToBlock();              // ¶Ô²ÎÊı×öÅĞ¶Ï       
+ 554   4            }
+ 555   3            //00 06 ?? 23 ?? ## CRCH CRCL
+ 556   3            else if(uart.rBuffer[3] == 0X23)        //¹ã²¥ÉèÖÃ²ÎÊı4(ÏÔÊ¾Ä£Ê½Éè¶¨)
+ 557   3            {
+ 558   4              para.str.DispMode = uart.rBuffer[5];     // Ğ´Èë²ÎÊı
+ 559   4              SetDispPage(PAGE_CFGFUNC4);          // ÉèÖÃÏÔÊ¾Ò³ÃæÎªF4ÏÔÊ¾
+ 560   4      
+ 561   4              led.light_type = LED_GREEN ;             // ÁÁµÄÄ£Ê½
+ 562   4              led.flash_mode = LED_FLASH_MODE_1V1;     // ³£ÁÁÄ£Ê½
+ 563   4              led.time_refresh = 0;           // ÈÃÉÁË¸Ê±¼äµ½
+ 564   4              led.flash_status = 0;           // ÏÈÁÁ  
+ 565   4              led.flash_period = 100;           // ÉÁË¸Ê±¼ä»ù×¼
+ 566   4              SaveParaToBlock();              // ¶Ô²ÎÊı×öÅĞ¶Ï 
+ 567   4              
+ 568   4            }
+ 569   3            //00 06 ?? 23 ?? ## CRCH CRCL
+ 570   3            else if(uart.rBuffer[3] == 0X24)        //¹ã²¥ÉèÖÃ²ÎÊı4(ÏÔÊ¾Ä£Ê½Éè¶¨)
+ 571   3            {
+ 572   4              para.str.KeyProssLED = uart.rBuffer[5];    // Ğ´Èë²ÎÊı
+ 573   4              SetDispPage(PAGE_CFGFUNC5);          // ÉèÖÃÏÔÊ¾Ò³ÃæÎªF5ÏÔÊ¾
+ 574   4      
+ 575   4              led.light_type = para.str.KeyProssLED ;    // ÁÁµÄÄ£Ê½
+ 576   4              led.flash_mode = LED_FLASH_MODE_ALWAYS;    // ³£ÁÁÄ£Ê½
+ 577   4              SaveParaToBlock();               // ¶Ô²ÎÊı×öÅĞ¶Ï        
+ 578   4            }
+ 579   3          }
+ 580   2      
+ 581   2          //ÆäËü£¬·Ç¹ã²¥ÃüÁî£¬½ÓÊÕĞÅÏ¢£¬ĞèÒª»Ø¸´
+ 582   2          else if( (uart.rBuffer[0] == addr)&&(addr != 0) )     //µØÖ·Ğ£Ñé
+ 583   2          {
+ 584   3      
+ 585   3            switch (uart.rBuffer[1])
+ 586   3            {
+ 587   4              case READ_MULTI_BYTE://ÖÕ¶ËÉÏ´«Êı¾İ,0X03ºÅmodbusÃüÁî£ºÍ¨ĞÅÊ±Ñ¯ÎÊÊÇ·ñÒÑ¾­°´Íê³É¼ü£¬ÉèÖÃµØÖ·Ê±Ñ¯ÎÊÊÇ·ñÒÑ
+             -¾­°´Íê³É¼ü½ÓÊÕµØÖ·
+ 588   4              {
+ 589   5                if((uart.rBuffer[4] == 0x00) && (uart.rBuffer[5] == 0x01))      //¼Ä´æÆ÷ÊıÁ¿01±íÊ¾³¢ÊÔµØÖ·ÊÇ·ñÒÑ¾­Éè¶¨µÄ
+             -ÃüÁî
+ 590   5                {
+ 591   6                  ACK_Multi_ReadTestAddr();                   //µØÖ·Éè¶¨ÊÇ·ñ³É¹¦²âÊÔ
+ 592   6                }
+ 593   5                else if ((uart.rBuffer[4] == 0x00) && (uart.rBuffer[5] == 0x03))  //¼Ä´æÆ÷ÊıÁ¿03±íÊ¾¶ÁÈ¡ÊÇ·ñ°´OK¼üµÄÃü
+             -Áî
+ 594   5                {                       
+ 595   6                  ACK_Multi_Read();                       //Ó¦´ğModbus 0x03ºÅ²É¼¯°´Å¥ÃüÁî           
+ 596   6                }
+ 597   5                break;
+ 598   5              }
+ 599   4              case WRITE_SINGLE_BYTE: //¿ØÖÆÆ÷ÏÂ´«Êı¾İ,0X06ºÅmodbusÃüÁî£ºËø¶¨½âËø±êÇ©
+ 600   4              {
+ 601   5                if(uart.rIndex == 0X08)           //ËùÓĞ06ºÅÃüÁî¶¼ÊÇ8×Ö½Ú³¤¶È
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 11  
+
+ 602   5                {
+ 603   6                  ACK_Single_Write();
+ 604   6                  //Çå³ıÈ«²¿(Çå³ıÏÔÊ¾ĞÅÏ¢¡¢µÆ¡¢·äÃùÆ÷)£¬Çå³ıOKĞÅÏ¢+É¨ÃèÇ¹ĞÅÏ¢+µÆËşĞÅÏ¢
+ 605   6                  if(uart.rBuffer[3] == 0X00)
+ 606   6                  {
+ 607   7                    Display_Clear();              // Çå³ıÏÔÊ¾ // °üº¬Çå³ıÊıÂë¹Ü£¬µÆ×é£¬Çå»ØÏÔ±êÖ¾ºÍÅäÖÃ±êÖ¾£¬ÊıÖµ¸ü¸Ä±êÖ¾
+ 608   7                    sys_data_reset();             // Çå³ıÈÎÎñĞÅÏ¢Çø
+ 609   7                    OsCmdSet.CurDispMode = DISPMODE_NONE;   // µ±Ç°ÈÎÎñ×´Ì¬ÉèÎª·ÇÔËĞĞ×´Ì¬
+ 610   7                  }
+ 611   6                  //Çå³ıÏÔÊ¾²¿·Ö(Çå³ıÏÔÊ¾ĞÅÏ¢¡¢µÆ¡¢·äÃùÆ÷)£¬²»°üÀ¨£¬Çå³ıOKĞÅÏ¢+É¨ÃèÇ¹ĞÅÏ¢+µÆËşĞÅÏ¢
+ 612   6                  else if(uart.rBuffer[3] == 0X01 || uart.rBuffer[3] == 0X02)
+ 613   6                  {
+ 614   7                    Display_Clear();              // Çå³ıÏÔÊ¾ // °üº¬Çå³ıÊıÂë¹Ü£¬µÆ×é£¬Çå»ØÏÔ±êÖ¾ºÍÅäÖÃ±êÖ¾£¬ÊıÖµ¸ü¸Ä±êÖ¾
+ 615   7                    sys_data_reset();             // Çå³ıÈÎÎñĞÅÏ¢Çø
+ 616   7                    OsCmdSet.CurDispMode = DISPMODE_NONE;   // µ±Ç°ÈÎÎñ×´Ì¬ÉèÎª·ÇÔËĞĞ×´Ì¬
+ 617   7                  }
+ 618   6                  else if(uart.rBuffer[3] == 0x20)    //Ëø¶¨½âËø
+ 619   6                  {
+ 620   7                    if(uart.rBuffer[5] == 0x00)     //½âËø
+ 621   7                    {
+ 622   8                      OsCmdSet.SystemLocked = OFF;
+ 623   8                    }
+ 624   7                    else if(uart.rBuffer[5] == 0x01)  //Ëø¶¨
+ 625   7                    {
+ 626   8                      OsCmdSet.SystemLocked = ON;
+ 627   8                    }
+ 628   7                  }
+ 629   6                  else if(uart.rBuffer[3] == 0x30)    //ÉÏÎ»»úÊÕµ½²É¼¯°´Å¥ÃüÁî´ø»ØÀ´µÄn¸öOKÃüÁîºó£¬»Ø´«¸øÉè±¸£¬¸æÖªÉè±¸Ò
+             -Ñ¾­½ÓÊÕµ½ÁËn¸öOKĞÅÏ¢(Ö»ÓĞÔÚÉÏÎ»»úÊÕµ½1¸öOKĞÅÏ¢£¬µ«ÊÇÉè±¸ÖĞ»¹ÓĞÒ»¸öÈÎÎñĞÅÏ¢Î´»Ø´«Ê±£¬²Å»á·¢ËÍ´ËÃüÁî)
+ 630   6                  {
+ 631   7                    //2014.3.31 ·¢ÏÖbug£¬ÉÏÎ»»úÇı¶¯ĞŞ¸ÄÎª²»Í£³¢ÊÔ·¢ËÍ×îºó2¸öÍê³ÉµÄÈ·ÈÏÃüÁî£¬È·±£
+ 632   7                    //ÏÂÊöÇé¿öÏÂÊ±²Å¿ÉÒÔÇå³ı£¬±ÜÃâÈ·ÈÏĞÅºÅÊ§°ÜÇé¿öÏÂµÄÏµÍ³´íÎó
+ 633   7                    if(uart.rBuffer[5] == 0x01 && ((FinishTask.num == 1 && UnfinishTask.num == 1) || (FinishTask.num ==
+             - 2 && UnfinishTask.num == 0)))      //1¸öOKĞÅÏ¢
+ 634   7                    {
+ 635   8                      FinishTask.num--;
+ 636   8                      if(FinishTask.num == 1)   //Ô­ÏÈÓĞ2¸öÒÑ¾­Íê³ÉµÄÈÎÎñ£¬ÔòºóÍùÇ°Å²£¬ÒòÎªÒÑ¾­Ã÷È·ÊÕµ½Ç°Ò»¸ö±»ÉÏÎ»»ú½ÓÊÕ
+             -µÄĞÅÏ¢
+ 637   8                      {
+ 638   9                        // µÚÒ»¸öÖ¸ÕëÊÇÒª±£´æÇøµÄµØÖ·£¬µÚ¶ş¸öÖ¸ÕëÊÇÊı¾İÇøµÄµØÖ·
+ 639   9                        PutFinishedToStack_Com(&FinishTask.info[0],&FinishTask.info[1]);
+ 640   9                        FinishTask.info[0].full = FinishTask.info[1].full;  
+ 641   9                      }
+ 642   8                    }
+ 643   7                  }
+ 644   6                }
+ 645   5                break;
+ 646   5              }
+ 647   4              case WRITE_MULTI_BYTE:                            //ÖÕ¶ËÏÂ´«Êı¾İ
+ 648   4              {
+ 649   5                //ÅäÖÃ×´Ì¬ÊÕµ½0X10ºÅÃüÁî,Ôò×Ô¶¯ÍË³öÅäÖÃÇÒ²»±£´æ
+ 650   5      //          if(KeyMode.f_Config == ON) 
+ 651   5      //          {
+ 652   5      //            usCountCfg = 0;
+ 653   5      //          }
+ 654   5                //¿ªÊ¼´¦ÀíÃüÁî£¬°üÀ¨Êı¾İÔİ´æ½ÓÊÕ¡¢¸÷ÖÖÏìÓ¦µÈ
+ 655   5                if(uart.rBuffer[7]==DISPMODE_NONE && uart.rBuffer[6] == 0X0A)
+ 656   5                {
+ 657   6                  ACK_Multi_Write();  
+ 658   6                  Display_Clear();        // Çå³ıÏÔÊ¾ // °üº¬Çå³ıÊıÂë¹Ü£¬µÆ×é£¬Çå»ØÏÔ±êÖ¾ºÍÅäÖÃ±êÖ¾£¬ÊıÖµ¸ü¸Ä±êÖ¾
+ 659   6                  sys_data_reset();       // Çå³ıÈÎÎñĞÅÏ¢Çø
+ 660   6                }
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 12  
+
+ 661   5                else if( (uart.rBuffer[5] == 0X00 && uart.rBuffer[6] == 0X0A && uart.rBuffer[7] == DISPMODE_TASK)     
+             - // ÎŞÅú´ÎºÅÃüÁî
+ 662   5                       ||(uart.rBuffer[5] == 0X01 && uart.rBuffer[6] == uart.rIndex-9 && uart.rBuffer[7] ==DISPMODE_T
+             -ASK && (uart.rBuffer[6]-uart.rBuffer[11]>=8)) )   // ÓĞÅú´ÎºÅÃüÁî
+ 663   5                {
+ 664   6                  //ÏÂ·¢±¾´ÎÏÔÊ¾Êı¾İÇ°£¬ÉÏÎ»»ú½ÓÊÕµ½µÄ±¾±êÇ©²É¼¯µ½µÄÊı¾İ×éÊı£¬Í¨¹ı´ËÊı¾İÀ´È·¶¨·¢´ËÊı¾İÖ®Ç°ÒÑ¾­±»ÉÏÎ»»ú
+             -²É¼¯µãµÄOK¼üµÄ´ÎÊı£¬ÓÉ´Ë¿ØÖÆtask_finished_num
+ 665   6                  OsCmdSet.LastSoftGetOkCount = (uart.rBuffer[9]>>4)&0X0F; 
+ 666   6                  //´Ë´¦¾ÀÕıµ±Íø¹ØÒÑ¾­½«ÃüÁîÏÂ´«µ½±¾Éè±¸£¬²¢ÇÒ±¾Éè±¸ÒÑ¾­½«Êı¾İ»Ø´«£¬µ«ÊÇ»Ø´«¹ı³ÌÖĞÉÏÎ»»úÓëÍø¹ØÖ®¼äµÄÍ¨
+             -ĞÅ³öÎÊÌâÊ±
+ 667   6                  //²»ÖØĞÂ½ÓÊÕĞÂÊı¾İ£¨Í¨¹ı±¾±êÇ©±¾´Î×÷ÒµÊ£ÓàÎ´²Ù×÷¸öÊıÓëµ±Ç°ÃüÁîÄ£Ê½µÄÓëÀ´ÅĞ¶¨,ÁíÍâÈç¹ûLastSoftGetOkCo
+             -unt==0µÄÇé¿ö£¬ÔòÔÊĞí½ÓÊÕ£©
+ 668   6                  //2014.3.31·¢ÏÖbug£¬Èç¹ûÊÇ0¸öLastSoftGetOkCount£¬»áÖØ¸´½ÓÊÕ
+ 669   6                  //1¶Ô¶àÈÎÎñÊ±£¬»á³öÏÖÏÔÊ¾¡¢ÅÄÃğ¡¢½ø¶ÈÌõ¡¢ÏÔÊ¾ÏàÍ¬µÄµÚÒ»¸ö¡¢ÅÄÃğ¡¢½ø¶ÈÌõ......£¨Éè±¸Í¨ĞÅ¹ÊÕÏÊ±£©
+ 670   6                  //½â¾öÍ¾¾¶£¬ÔİÊ±¿ÉÍ¨¹ıÉÏÎ»Çı¶¯³ÌĞò·¢ÏÖ±¾±êÇ©±¾´ÎÈÎÎñÍê³Éºó£¬·¢ËÍclearÃüÁî£¬±¾³ÌĞò¼ÇÏÂclear×´Ì¬ÓëÏÔÊ¾
+             -×´Ì¬£¬
+ 671   6                  //Èç¹ûclear×´Ì¬Ê±£¬LastSoftGetOkCount==0Ê±£¬ÅĞ¶ÏÓĞÃ»ÓĞÈÎÎñ½ÓÊÕÏÂÀ´£¬Èç¹ûÓĞÈÎÎñ½ÓÊÕÏÂÀ´£¬Ôò·¢ËÍACK_Mu
+             -lti_Write_RepeatError
+ 672   6                  //·ñÔò£¬´¦Àí
+ 673   6                  //ÈÎÎñÇı¶¯ĞÍĞÅÏ¢
+ 674   6                  if( (OsCmdSet.CurDispMode == DISPMODE_TASK)&&(UnfinishTask.repeat == TRUE) )
+ 675   6                  {
+ 676   7                    ACK_Multi_Write_RepeatError();    //»ØÖØ¸´ÊÕµ½ÏàÍ¬ÃüÁîµÄÏìÓ¦
+ 677   7                    break;                                                                
+ 678   7                  }
+ 679   6                  ACK_Multi_Write();
+ 680   6                  //ÒÑ¾­ĞŞ¸ÄÎª£¨¼´µ±Ç°ÈôÓĞÎ´´¦ÀíÍêµÄÈÎÎñ£¬À´ÁËĞÂÈÎÎñ£¬Ôò½ÓÊÕÏÔÊ¾ĞÂµÄ£¬Ô­ÏÈ²»½ÓÊÕ£©
+ 681   6                  Commu_Task_Process(); 
+ 682   6                  UnfinishTask.repeat  = TRUE;       // ÖÃÒÑÊÕµ½ÈÎÎñ±êÖ¾£¬·ÀÖ¹ÖØ¸´·¢ËÍ
+ 683   6                }
+ 684   5                OsCmdSet.CurDispMode = uart.rBuffer[7];   // ±£´æµ±Ç°ÈÎÎñ×´Ì¬
+ 685   5                break;
+ 686   5              }
+ 687   4              default:
+ 688   4              {
+ 689   5                break;
+ 690   5              }
+ 691   4            }
+ 692   3          }
+ 693   2      
+ 694   2              //ÆäËü£¬×é²¥ÃüÁî£¬½ÓÊÕĞÅÏ¢£¬²»»Ø¸´
+ 695   2          else if( (uart.rBuffer[0] == MULCAST_ADDR)  )     //×é²¥µØÖ·Ğ£Ñé
+ 696   2          {
+ 697   3             
+ 698   3             if( (uart.rBuffer[1] == WRITE_MULTI_BYTE)&&(uart.rBuffer[5] == 0X02)&& (uart.rBuffer[6] == uart.rInde
+             -x-9) )   // ×é²¥ÃüÁî
+ 699   3             {
+ 700   4                if(uart.rBuffer[7] == 0X00)
+ 701   4              { // ×é²¥Çå³ıÃüÁî
+ 702   5                   for( i=0 ; i < uart.rBuffer[9]; i++ )
+ 703   5                 { 
+ 704   6                    if(uart.rBuffer[10+i] == addr)
+ 705   6                  {
+ 706   7                   Display_Clear();       // Çå³ıÏÔÊ¾ // °üº¬Çå³ıÊıÂë¹Ü£¬µÆ×é£¬Çå»ØÏÔ±êÖ¾ºÍÅäÖÃ±êÖ¾£¬ÊıÖµ¸ü¸Ä±êÖ¾
+ 707   7                   sys_data_reset();        // Çå³ıÈÎÎñĞÅÏ¢Çø
+ 708   7                   OsCmdSet.CurDispMode = DISPMODE_NONE;    // µ±Ç°ÈÎÎñ×´Ì¬ÉèÎª·ÇÔËĞĞ×´Ì¬              
+ 709   7                   break;
+ 710   7                  }
+ 711   6                 }
+ 712   5              }
+ 713   4              else if(uart.rBuffer[7] == 0X03)
+ 714   4              { // ×é²¥ÏÔÊ¾ÃüÁî
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 13  
+
+ 715   5                   for( i=0 ; i < uart.rBuffer[9]; i++ )
+ 716   5                 { 
+ 717   6                    if(uart.rBuffer[10+i] == addr)
+ 718   6                  {
+ 719   7                     Display_Info( &uart.rBuffer[10 + uart.rBuffer[9]]);      // ÏÔÊ¾ĞÅÏ¢
+ 720   7                   OsCmdSet.CurDispMode = DISPMODE_TASK;
+ 721   7                   break;
+ 722   7                  }
+ 723   6                 }
+ 724   5              }
+ 725   4             }
+ 726   3          }
+ 727   2      
+ 728   2      //    p_led_rxd = 1;
+ 729   2          LED_RXT_OFF;
+ 730   2        }
+ 731   1      //  uart.rIndex = 0;
+ 732   1      //  uart.rFlag  = OFF;
+ 733   1      }
+ 734          
+ 735          /*******************************************************************************
+ 736                      ´¦ÀíMODBUS×ÜÕ¾ÏÂ·¢µÄÃüÁî
+ 737          Ã¿×éÃüÁî¹²14¸ö×Ö½Ú£»
+ 738          BYTE_ADD,BYTE_HEAD,BYTE1,---> BYTE10 , CRC_H , CRC_L
+ 739          
+ 740          BYTE_ADD  : ÖÕ¶ËµØÖ·
+ 741          BYTE_HEAD :  ÏÂ´«ÃüÁîÂë
+ 742          BYTE1   :  ÏÂ´«Ö¸ÁîºÅ
+ 743          BYTE2   :  LEDÖ¸Ê¾µÆÏÔÊ¾·½Ê½
+ 744          BYTE3   :  ±¾´ÎÏÂ·¢µÄ"µç×Ó±êÇ©"¸öÊı
+ 745          BYTE4   :  Ö÷»úÖĞµÄ´ËµØÖ·Ê£Óà"µç×Ó±êÇ©"¸öÊı
+ 746          BYTE5-BYTE7 :   µÚÒ»¸ö"µç×Ó±êÇ©"ÄÚÈİ
+ 747          BYTE8-BYTE10:   µÚ¶ş¸ö"µç×Ó±êÇ©"ÄÚÈİ  
+ 748          BYTE11    : CRC_H
+ 749          BYTE12    : CRC_L
+ 750          
+ 751          ÏÂ´«ÃüÁîºÅ:
+ 752          00-   Çå³ıÉè±¸µÄËùÓĞÏÔÊ¾ĞÅÏ¢¼´±êÇ©½«²»¹¤×÷;
+ 753          01-   µç×Ó±êÇ©ÓëÉÌÆ·ÌõÂë½øĞĞ°ó¶¨Ä£Ê½£»´ËÊ±3~10Î»Êı¾İÎŞĞ§£¬Êı¾İÕì³¤¶È2×Ö½Ú
+ 754          02-    Ö¸Ê¾µÆÏÔÊ¾·½Ê½µ¥¶À¿ØÖÆ£¬´ËÊ±3~10Î»Êı¾İÎŞĞ§£¬Êı¾İÕì³¤¶È2×Ö½Ú
+ 755          03-   ÏÂ·¢ÏÔÊ¾Êı¾İÒÔ¼°Ö¸Ê¾µÆµÄĞÅÏ¢£¬¼´Ê°È¡¡¢ÉÏ»õ¡¢ÅÌµã×÷Òµ£»
+ 756                   Êı¾İÕì³¤¶È7×Ö½Ú»òÕß10×Ö½Ú
+ 757          *******************************************************************************/
+ 758          void Cmd_Process(void)
+ 759          {
+ 760   1        // ½ÓÊÕÎ´Íê³É»òÅäÖÃ×´Ì¬ÔòÍË³ö
+ 761   1      //  if( (uart.rFlag == OFF)||(KeyMode.f_Config == ON) )     // Ô­ÏÈÔÚ½øÈëÉèÖÃÃÜÂë×´Ì¬£¬Èç¹ûÆäËû±êÇ©ÔÚÍ¨Ñ¶ÔòÒ»
+             -Ö±²»ÄÜÉèÖÃ£¬¸ü¸Ä½øÈëÃÜÂëÉèÖÃ×´Ì¬£¬²»½ÓÊÕÍ¨Ñ¶Êı¾İ
+ 762   1        if( (uart.rFlag == OFF)||(KeyMode.f_Config == ON)||(Key.f_LongFunc == TRUE) )
+ 763   1        { return; }
+ 764   1      
+ 765   1        //Êı¾İ°ü³¤¶È²»¹»,²»×öModbusÓ¦´ğ    
+ 766   1        if( (uart.rIndex >= ONE_CMD_MIN_LENGTH) )
+ 767   1          //ÏÈ¿´µØÖ·¡¢CRCĞ£Ñé¡¢Êı¾İ³¤¶ÈµÈÅĞ¶Ï
+ 768   1        //ÔÙ¸ù¾İµÚ¶ş¸ö×Ö½ÚµÄ·¶Î§ÅĞ¶ÏÊÇ²ÉÓÃĞÂĞ­Òé½âÎö»¹ÊÇ¾ÉĞ­Òé½âÎö
+ 769   1        //µØÖ·ÓëCRCÊı¾İĞ£Ñé,ÏÂ´«Ö¸Áî´æ´¢,MODBUSÓ¦´ğ,CRC_Checkº¯ÊıÖĞ°üº¬µØÖ·Éè¶¨ÃüÁî
+ 770   1        { 
+ 771   2      //    if( Key.f_LongFunc == TRUE )
+ 772   2      //    { Display_Clear(); }       // Ô­ÏÈÔÚ½øÈëÉèÖÃÃÜÂë×´Ì¬£¬Èç¹ûÆäËû±êÇ©ÔÚÍ¨Ñ¶ÔòÒ»Ö±²»ÄÜÉèÖÃ
+ 773   2          DiscodeProtocalV1(); 
+ 774   2        }     
+ 775   1        
+C51 COMPILER V9.52.0.0   PROCESS                                                           11/16/2016 13:22:40 PAGE 14  
+
+ 776   1        uart.rFlag   = OFF;        // Çå½ÓÊÕÍê³É±êÖ¾
+ 777   1        uart.rIndex  = 0;        // Çå½ÓÊÕ¸öÊı
+ 778   1      }
+ 779          /*******************************************************************************
+ 780                          END         
+ 781          *******************************************************************************/
+ 782          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2634    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      17
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

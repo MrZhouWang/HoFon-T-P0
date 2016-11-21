@@ -1,0 +1,875 @@
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE KEY
+OBJECT MODULE PLACED IN .\key.obj
+COMPILER INVOKED BY: D:\Program Files\KEIL4\C51\BIN\C51.EXE ..\src\key.c BROWSE DEBUG OBJECTEXTEND PRINT(.\key.lst) OBJE
+                    -CT(.\key.obj)
+
+line level    source
+
+   1          
+   2          #define AP_KEY_GLOBALS  
+   3          #include "extern_symbol.h" 
+   4          
+   5          /*
+   6          // 按键功能说明 
+   7          */
+   8                                                                           
+   9          /*******************************************************************************
+  10                                            任务保存共用函数
+  11                  input:   ptr1为保存区的地址，ptr2 为数据区的地址     
+  12                  output:  none                                   
+  13          *******************************************************************************/
+  14          void    PutFinishedToStack_Com(TASK_INFO XDATA *ptr1,TASK_INFO XDATA *ptr2)
+  15          {
+  16   1              UINT8 i ,len;
+  17   1                        
+  18   1              len = (*ptr1).srcode_len = (*ptr2).srcode_len;  
+  19   1      
+  20   1              if(len > MAX_SRCODE_NUM) { len = MAX_SRCODE_NUM; }
+  21   1              // 保存批次信息
+  22   1              for(i = 0; i < len; i++)
+  23   1              {  (*ptr1).srcode[i] = (*ptr2).srcode[i]; }
+  24   1      
+  25   1              (*ptr1).sku   = (*ptr2).sku;                                    // 库位号
+  26   1              (*ptr1).count = (*ptr2).count;                                  // 数量
+  27   1      //      (*ptr1).full  = (*ptr2).full;                                   // 满箱操作标志
+  28   1      }       
+  29          
+  30          /*******************************************************************************
+  31                                          一个拣货任务完成后，存入任务历史堆栈，以供回显使用
+  32                  input:   none     
+  33                  output:  none                                   
+  34          *******************************************************************************/
+  35          void PutFinishedToStack(void)
+  36          {
+  37   1              UINT8 i ;
+  38   1      
+  39   1              //堆栈未满，直接压入
+  40   1              if (BackTask.num < MAX_BACK_NUM)
+  41   1              {
+  42   2                      // 第一个指针是要保存区的地址，第二个指针是数据区的地址
+  43   2                      PutFinishedToStack_Com(&BackTask.info[BackTask.num],&UnfinishTask.info[0]);
+  44   2                      BackTask.num++;
+  45   2              }
+  46   1              //堆栈已满，先移动再压入
+  47   1              else
+  48   1              {
+  49   2                      for (i = 0; i < MAX_BACK_NUM-1; i++)
+  50   2                      {
+  51   3                              // 第一个指针是要保存区的地址，第二个指针是数据区的地址
+  52   3                              PutFinishedToStack_Com(&BackTask.info[i],&BackTask.info[i+1]);
+  53   3                      }
+  54   2                      // 第一个指针是要保存区的地址，第二个指针是数据区的地址
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 2   
+
+  55   2                      PutFinishedToStack_Com(&BackTask.info[MAX_BACK_NUM-1],&UnfinishTask.info[0]);
+  56   2                      BackTask.num = MAX_BACK_NUM;
+  57   2              }
+  58   1      }
+  59          
+  60          /*******************************************************************************
+  61           正常模式下，改变对应的值，并保证在范围内            
+  62          *******************************************************************************/
+  63          void NormolChgVal(INT8U sts)
+  64          {
+  65   1              INT8U   rev,num;//,val[4];
+  66   1              INT16U  usValue;
+  67   1              
+  68   1              if( KeyMode.f_ChangeValue == OFF ) {return;}
+  69   1      
+  70   1              //其它原先没有长按下Fn键的情况下，并且当前显示数值<DISPLAY_MAX_NUM，并且任务显示时
+  71   1      //      usValue = ((UINT16)(task_un_goods_numH[0])) *256 + (UINT16)(task_un_goods_numL[0]);     
+  72   1              num     = UnfinishTask.num;
+  73   1              usValue = UnfinishTask.info[0].count;
+  74   1      //      if( (DispMode == 0X00) && (task_unfinish_num > 0) && (usValue <=DISPLAY_MAX_NUM) && (task_unfinish_num 
+             -<= MAX_TASK_NUM) )
+  75   1      //      if( (task_unfinish_num > 0) && (usValue <=DISPLAY_MAX_NUM) && (task_unfinish_num <= MAX_TASK_NUM) )
+  76   1      //      if( (num > 0) && (num <= MAX_TASK_NUM) && (usValue < DISPLAY_MAX_NUM)&&(DIGILED_COUNT != 0) )
+  77   1              if( (num > 0) && (num <= MAX_TASK_NUM) && (usValue < os_disp_set.DispMax_count)&&(os_disp_set.DispLed_cou
+             -nt != 0) )
+  78   1              {
+  79   2      
+  80   2              
+  81   2      //#if   (DIGILED_COUNT != 0)
+  82   2      //              Disp.Focus = (Disp.Focus % DIGILED_COUNT);
+  83   2                      Disp.Focus = (Disp.Focus % os_disp_set.DispLed_count);
+  84   2      //#endif
+  85   2      //              num = Disp.Focus+(COUNT_MAX-DIGILED_COUNT);
+  86   2                      num = Disp.Focus+(COUNT_MAX-os_disp_set.DispLed_count);
+  87   2                      Calc_Value5(0,0,usValue);
+  88   2      
+  89   2                      rev = Buffer[num];
+  90   2      
+  91   2      //              rev = Buffer[Disp.Focus];//val[ucFocus];
+  92   2                      if(sts != 0){ rev++; }
+  93   2                      else            { rev--; }
+  94   2                      
+  95   2                      if(rev > 9)
+  96   2                      {
+  97   3                              if(sts != 0){ rev = 0; }
+  98   3                              else            { rev = 9; }
+  99   3                      }
+ 100   2      
+ 101   2                      Buffer[num] = rev;
+ 102   2      
+ 103   2      
+ 104   2                      usValue = (Buffer[0]*10000 + Buffer[1]*1000 + Buffer[2]*100 + Buffer[3]*10 + Buffer[4]);
+ 105   2                      UnfinishTask.info[0].count =  usValue;
+ 106   2                      
+ 107   2      
+ 108   2                      Disp.f_OffDisp              = OFF;                              // 先显示数值
+ 109   2                      Disp.TatolTimeRefresh8  = TIMER_MODIFY;         // 超时退出
+ 110   2                      SetDispPage(PAGE_RUN);
+ 111   2              }
+ 112   1      }
+ 113          
+ 114          /*******************************************************************************
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 3   
+
+ 115                                  正常模式下，符合条件则设置更改
+ 116                                  改变对应的焦点位，并保证在范围内            
+ 117          *******************************************************************************/
+ 118          void NormolChgFocus(INT8U sts)
+ 119          {
+ 120   1              INT8U   num;
+ 121   1              INT16U  usValue;        
+ 122   1                                      
+ 123   1      //      usValue = ((UINT16)(task_un_goods_numH[0])) *256 + (UINT16)(task_un_goods_numL[0]);
+ 124   1      
+ 125   1              //其它原先没有长按下Fn键的情况下，并且当前显示数值<DISPLAY_MAX_NUM，并且任务显示时
+ 126   1      //      if (DispMode == 0X00 && task_unfinish_num > 0 && usValue <=DISPLAY_MAX_NUM)
+ 127   1      //      if( (task_unfinish_num > 0) && (usValue <=DISPLAY_MAX_NUM) )
+ 128   1              num     = UnfinishTask.num;
+ 129   1              usValue = UnfinishTask.info[0].count;
+ 130   1      //      if( (num > 0) && (num <= MAX_TASK_NUM) && (usValue < DISPLAY_MAX_NUM)&&(DIGILED_COUNT != 0) )
+ 131   1              if( (num > 0) && (num <= MAX_TASK_NUM) && (usValue < os_disp_set.DispMax_count)&&(os_disp_set.DispLed_cou
+             -nt != 0) )
+ 132   1              {
+ 133   2                      if(KeyMode.f_ChangeValue == OFF)
+ 134   2      //              { Disp.Focus = DIGILED_COUNT-1; }                                        // 把设置值设在最低位          4位对应3
+ 135   2                      { Disp.Focus = os_disp_set.DispLed_count-1; }                                    // 把设置值设在最低位          4位对应3
+ 136   2                      else if(sts != 0)
+ 137   2                      { 
+ 138   3      //                      if( ++Disp.Focus >= DIGILED_COUNT)                       // 焦点位前移
+ 139   3                              if( ++Disp.Focus >= os_disp_set.DispLed_count)                   // 焦点位前移
+ 140   3                              { Disp.Focus = CHG_TASK_COUNT_FIRST; }
+ 141   3                      }
+ 142   2                      else
+ 143   2                      {
+ 144   3                              if( Disp.Focus-- == CHG_TASK_COUNT_FIRST )
+ 145   3      //                      { Disp.Focus = DIGILED_COUNT-1; }                                        // 焦点位后移  
+ 146   3                              { Disp.Focus = os_disp_set.DispLed_count-1; }                                    // 焦点位后移  
+ 147   3                      }       
+ 148   2                      
+ 149   2                      KeyMode.f_ChangeValue  = ON;                            // 设置值修改标志
+ 150   2                      Disp.f_OffDisp             = ON;                                // 先显示灭
+ 151   2                      Disp.TatolTimeRefresh8 = TIMER_MODIFY;          // 超时退出
+ 152   2                      SetDispPage(PAGE_RUN);
+ 153   2              }
+ 154   1      }
+ 155          /************************************************************************
+ 156          * 按键正常功能,非配置状态按键处理函数
+ 157          * 输入按键值
+ 158          ************************************************************************/
+ 159          void    KeyNormolFun(INT8U keyvalue)
+ 160          {
+ 161   1               INT8U  i;
+ 162   1      //       UINT16 usValue = 0;
+ 163   1      
+ 164   1              // 如进入配置参数密码状态，非"后退"按键，则清除配置及显示，退出
+ 165   1      //      // 其他按键清除该配置状态
+ 166   1              if((Key.f_LongFunc == TRUE)&&( keyvalue != KEYFUN_BACK ))
+ 167   1              {  Display_Clear(); return; }
+ 168   1      
+ 169   1              // 提取出共用的部分
+ 170   1              // 原先按下Fn做满箱操作的情况下,则非OK键，清除该标志并刷新显示
+ 171   1              if( (Key.f_IsFnKeyPressed == ON)&&(keyvalue != KEYFUN_OK) )
+ 172   1              {
+ 173   2                      Key.f_IsFnKeyPressed = OFF;  
+ 174   2                      SetDispPage(Disp.Page);
+ 175   2                      return;
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 4   
+
+ 176   2              }
+ 177   1      
+ 178   1              //==================================================================
+ 179   1              //非配置状态模式下，按键处理函数                        
+ 180   1              switch( keyvalue )
+ 181   1              {       //--------------------------------------------------------------
+ 182   2                      // 功能键  长按完成退出功能,短按完成参数页面切换功能
+ 183   2                      case KEYFUN_FUNC:
+ 184   2                      {                       
+ 185   3                              //长按，如果无任务则进入配置界面，有任务则根据F3参数选择零拣或置满箱操作标志
+ 186   3                              if(Key.f_LongOnce == TRUE)
+ 187   3                              {  
+ 188   4                                      Key.f_LongOnce = FALSE;         // 只执行一次
+ 189   4                                      
+ 190   4                                      //无作业任务且完成缓冲区空，长按进入配置状态.
+ 191   4      //                              if ((task_finished_num ==0)&&(task_unfinish_num ==0))//无作业任务且完成缓冲区空，可进入配置状态.
+ 192   4      //                              if ( (FinishTask.num == 0)&&(UnfinishTask.num == 0) )//无作业任务且完成缓冲区空，可进入配置状态.        /
+             -/用FinishTask做条件如果是启用F1功能，则Finish不会被清0，进不了配置模式
+ 193   4                                      if( (UnfinishTask.num == 0) && (UnfinishTask.remain == 0) )             // 未完成为0，剩余为0，则认为任务为空
+ 194   4                                      {
+ 195   5                                              Key.f_LongFunc = TRUE;                                          // 进入配置状态的密码显示状态
+ 196   5                                              Key.CfgPwdCnt  = 0;                                                     // 密码核对次数
+ 197   5                                              Disp.TatolTimeRefresh8 = TIMER_CONFIG/3;                // 超时退出
+ 198   5                                              SetDispPage( PAGE_CFGPWD );                                     // 进入地址配置密码显示页面
+ 199   5      //                                      // 进入配置状态
+ 200   5      //                                      KeyMode.f_Config = ON;                                             // 进入配置状态
+ 201   5      //                                      Disp.TatolTimeRefresh8 = TIMER_CONFIG;             // 超时退出                                  
+ 202   5      //                                      Disp.Focus               = 2;                                              // 焦点位设置,地址的最低位
+ 203   5      //                                      Disp.MenuPage    = 0;                                              // 菜单页面设置 ，进入地址设置界面
+ 204   5      // 
+ 205   5      //                                      for (i = 0; i < MAX_CFGPARA; i++)
+ 206   5      //                                      {                       
+ 207   5      //                                              para_bk.Byte[i] = para.Byte[i];                            // 保存入备份区
+ 208   5      //                                      }                  
+ 209   5      //                                      SetDispPage( PAGE_CFGADDR );                               // 进入地址配置显示页面
+ 210   5                                      }
+ 211   4      //                              else if(task_unfinish_num > 0) //有显示数字信息的时候，长按Fn键，清零（以支持零拣）或置满箱操作标志
+ 212   4                                      else if(UnfinishTask.num > 0) //有显示数字信息的时候，长按Fn键，清零（以支持零拣）或置满箱操作标志
+ 213   4                                      {       // 根据参数F3 选择零拣或置满箱操作标志，零拣改用长按"-“键来完成
+ 214   5                                              switch(para.str.FnDefine)
+ 215   5                                              {
+ 216   6      //                                              case 0:
+ 217   6      //                                              if(DispMode != 0X01)
+ 218   6      //                                              {
+ 219   6      //                                                      task_un_goods_numH[0] =  0;
+ 220   6      //                                                      task_un_goods_numL[0] =  0;
+ 221   6      ////                                                    digital_led_refresh = ON;    //使能刷新数据
+ 222   6      ////                                                    SetLcdLay( LCD.Type );                           // 回到运行页面
+ 223   6      //                                                      LCD.f_LcdEnable  = WAIT_REFRESH;                        // 等待刷新总标志
+ 224   6      //                                              }
+ 225   6      //                                              break;
+ 226   6                                                      case 1:
+ 227   6                                                      Key.f_IsFnKeyPressed = ON;                                      // 置Fn键长按标志
+ 228   6                                                      SetDispPage(PAGE_RUN);
+ 229   6                                                      break;
+ 230   6                                              }
+ 231   5                                      }                                               
+ 232   4                              }
+ 233   3                              //短按，如果无任务且已有完成任务存储则进入回显界面，有任务则恢复当前显示任务
+ 234   3                              //非配置状态下,短按Fn,开始回翻数据，每按一次FN键往前回翻一个，此时SYS灯亮，并且指示灯颜色不变，快闪显示
+             -，按OK键或者全部回翻完毕后结束恢复至原来状态
+ 235   3                              else
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 5   
+
+ 236   3                              {                                       
+ 237   4                                      //拣货过程中，短按Fn键，恢复下发时的初始数据
+ 238   4      //                              if(DispMode != 0X01 && task_unfinish_num > 0)
+ 239   4      //                              if(task_unfinish_num > 0)
+ 240   4                                      if(UnfinishTask.num > 0)
+ 241   4                                      {       // 可快速恢复到数值
+ 242   5      //                                      task_un_goods_numH[0] =  task_curOri_goods_numH;
+ 243   5      //                                      task_un_goods_numL[0] =  task_curOri_goods_numL;
+ 244   5      
+ 245   5                                              UnfinishTask.info[0].count = OsCmdSet.TaskCurCount;        // 恢复当前显示任务
+ 246   5                                              Disp.f_Rolling &= ~(ROLL_MODE_COUNT | ROLL_MODE_COUNT_ED); //清数量滚屏标志     
+ 247   5                                              SetDispPage(PAGE_RUN);
+ 248   5                                      }
+ 249   4                                      //只有全部拣货任务完成后才能进入回显模式   // 未完成任务和剩余任务均为0
+ 250   4      //                              else if(task_unfinish_num == 0 && task_unupdate_num == 0) 
+ 251   4                                      else if( (UnfinishTask.num == 0) && (UnfinishTask.remain == 0) )
+ 252   4                                      {                                               
+ 253   5      //                                      if(DispContentStackCount > 0)
+ 254   5                                              if(BackTask.num > 0)
+ 255   5                                              {
+ 256   6                                                      //进入回显模式
+ 257   6                                                      if(KeyMode.f_BackDisp == OFF)
+ 258   6                                                      {       // 非回显模式则置回显模式标志，并进入回显页面
+ 259   7                                                              KeyMode.f_BackDisp = ON;
+ 260   7                                                              BackTask.index = BackTask.num - 1;              // 回显最后一个
+ 261   7      //                                                      CurBackDispIndex = DispContentStackCount -1;
+ 262   7                                                              Disp.f_Rolling = ROLL_MODE_OFF;                 // 清滚屏标志
+ 263   7                                                              SetDispPage( PAGE_BACKDISPLAY );                // 进入回显页面
+ 264   7                                                      }
+ 265   6                                                      else
+ 266   6                                                      {
+ 267   7      //                                                      if(CurBackDispIndex == 0)
+ 268   7                                                              if(BackTask.index == 0)
+ 269   7                                                              {       // 回显模式且回显到第一个则退出回显页面
+ 270   8                                                                      KeyMode.f_BackDisp = OFF;
+ 271   8      //                                                              CurBackDispIndex = 0;
+ 272   8                                                                      Display_Clear();                   // 清除显示 // 包含清除数码管，灯组，清回显标志和配置标志，数值更改标志
+ 273   8                                                              }
+ 274   7                                                              else
+ 275   7                                                              {
+ 276   8      //                                                              CurBackDispIndex--;
+ 277   8                                                                      BackTask.index--;
+ 278   8      //                                                              digital_led_refresh = ON;         //使能刷新数码管
+ 279   8                                                                      Disp.f_Rolling = ROLL_MODE_OFF;                                 // 清滚屏标志
+ 280   8                                                                      SetDispPage( PAGE_BACKDISPLAY );                                // 进入回显页面
+ 281   8                                                              }                                       
+ 282   7                                                      }
+ 283   6                                              }
+ 284   5                                      }                                                                        
+ 285   4                              }
+ 286   3                      }break;                                 
+ 287   2                      //--------------------------------------------------------------
+ 288   2                      // 向下键               
+ 289   2                      case KEYFUN_SUB :
+ 290   2                      {                                               
+ 291   3                              if(Key.f_LongOnce == TRUE)
+ 292   3                              {  //长按‘-’键，数量值清0，能进入这里说明在任务执行中
+ 293   4                                      Key.f_LongOnce = FALSE;         // 只执行一次
+ 294   4      
+ 295   4      //                              if( (task_unfinish_num > 0)&&(DispMode != 0X01) ) //有显示数字信息的时候，长按-1键，清零（以支持零拣
+             -）
+ 296   4      //                              if( (task_unfinish_num > 0) ) //有显示数字信息的时候，长按-1键，清零（以支持零拣）
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 6   
+
+ 297   4                                      if( (UnfinishTask.num > 0) ) //有显示数字信息的时候，长按-1键，清零（以支持零拣）
+ 298   4                                      {
+ 299   5                                              UnfinishTask.info[0].count = 0;          // 清0
+ 300   5                                              Disp.f_Rolling &= ~(ROLL_MODE_COUNT | ROLL_MODE_COUNT_ED); //清数量滚屏标志
+ 301   5                                              SetDispPage(PAGE_RUN);                           // 设置任务进行中显示页面
+ 302   5                                      }
+ 303   4                              }
+ 304   3                              else    if(KeyMode.f_BackDisp == ON)
+ 305   3                              {// 回显界面
+ 306   4                              }
+ 307   3                              else
+ 308   3                              {
+ 309   4                                      NormolChgVal(0);                // 判断条件符合则设置数量，条件为任务执行中，且数量不超过最大显示值
+ 310   4                              }                               
+ 311   3                      }break;         
+ 312   2                      //--------------------------------------------------------------
+ 313   2                      // 向上键
+ 314   2      //              case KEYFUN_ADD   :
+ 315   2      //              {                                                               
+ 316   2      //                      {
+ 317   2      //                              NormolChgVal(1);                // 判断条件符合则设置数量
+ 318   2      //                      }
+ 319   2      //              }break;                                                 
+ 320   2                      //--------------------------------------------------------------
+ 321   2                      // 向前键 
+ 322   2      //              case KEYFUN_FORWARD :
+ 323   2      //              {                                                               
+ 324   2      //                      if(ucBackDispMode == ON)
+ 325   2      //                      {  // 回显界面
+ 326   2      //                              if((CurBackDispIndex >= DispContentStackCount)||(CurBackDispIndex >= MAX_BACK_NUM))
+ 327   2      //                              {       // 回显模式且回显到第一个则退出回显页面
+ 328   2      ////                                    ucBackDispMode = OFF;
+ 329   2      ////                                    CurBackDispIndex = 0;
+ 330   2      //                                      Display_Clear();                                // 包含清除回显标志和索引
+ 331   2      ////                                    LED_ALL_OFF();                    //关灯
+ 332   2      ////                                    SetLcdLay( PAGE_RUN );                           // 进入回显页面
+ 333   2      //                              }
+ 334   2      //                              else
+ 335   2      //                              {
+ 336   2      //                                      CurBackDispIndex++;
+ 337   2      ////                                    CurBackDispPage = CurBackDispIndex/5 + 1;
+ 338   2      ////                                    digital_led_refresh = ON;         //使能刷新数码管
+ 339   2      ////                                    SetLcdLay( PAGE_BACKDISPLAY );                           // 进入回显页面
+ 340   2      ////                                    LCD.f_LcdEnable  = WAIT_REFRESH;                        // 等待刷新总标志
+ 341   2      //                                      SetDispPage(Disp.Page);
+ 342   2      //                              }
+ 343   2      //                      }
+ 344   2      //                      else
+ 345   2      //                      {       // 非回显界面，有任务则进入该拣货数量界面
+ 346   2      //                              NormolChgFoc(1);                                                // 焦点位前移
+ 347   2      //                      }       
+ 348   2      //              }break;
+ 349   2                      
+ 350   2                      //--------------------------------------------------------------
+ 351   2                      // 向后键       
+ 352   2                  case KEYFUN_BACK:
+ 353   2                  {                   
+ 354   3                              if(KeyMode.f_BackDisp == ON)
+ 355   3                              {// 回显界面
+ 356   4      //                              if(CurBackDispIndex == 1)
+ 357   4      //                              {       // 回显模式且回显到第一个则退出回显页面
+ 358   4      ////                                    ucBackDispMode = OFF;
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 7   
+
+ 359   4      ////                                    CurBackDispIndex = 0;
+ 360   4      //                                      Display_Clear();                  // 包含清除回显标志和索引
+ 361   4      ////                                    LED_ALL_OFF();                    //关灯
+ 362   4      ////                                    SetLcdLay( PAGE_RUN );                           // 进入回显页面
+ 363   4      //                              }
+ 364   4      //                              else
+ 365   4      //                              {
+ 366   4      //                                      CurBackDispIndex--;
+ 367   4      ////                                    CurBackDispPage = CurBackDispIndex/5 + 1;
+ 368   4      ////                                    digital_led_refresh = ON;         //使能刷新数码管
+ 369   4      ////                                    SetLcdLay( PAGE_BACKDISPLAY );                           // 进入回显页面
+ 370   4      ////                                    LCD.f_LcdEnable  = WAIT_REFRESH;                        // 等待刷新总标志
+ 371   4      //                                      SetDispPage(Disp.Page);
+ 372   4      //                              }
+ 373   4                              }
+ 374   3                              else if(Key.f_LongFunc == TRUE)
+ 375   3                              {
+ 376   4                                      if( Key.CfgPwdCnt++ >= 3 )
+ 377   4                                      {
+ 378   5                                              Key.f_LongFunc =  FALSE;
+ 379   5                                              // 进入配置状态
+ 380   5                                              KeyMode.f_Config = ON;                                             // 进入配置状态
+ 381   5                                              Disp.TatolTimeRefresh8 = TIMER_CONFIG;             // 超时退出                                  
+ 382   5                                              Disp.Focus               = 2;                                              // 焦点位设置,地址的最低位
+ 383   5                                              Disp.MenuPage    = 0;                                              // 菜单页面设置 ，进入地址设置界面
+ 384   5       
+ 385   5                                              for (i = 0; i < MAX_CFGPARA; i++)
+ 386   5                                              {                       
+ 387   6                                                      para_bk.Byte[i] = para.Byte[i];                            // 保存入备份区
+ 388   6                                              }                  
+ 389   5                                              SetDispPage( PAGE_CFGADDR );                               // 进入地址配置显示页面
+ 390   5                                      }
+ 391   4                                      else 
+ 392   4                                      { 
+ 393   5                                              Disp.TatolTimeRefresh8 = TIMER_CONFIG/6;                // 超时退出
+ 394   5                                              SetDispPage( PAGE_CFGPWD ); 
+ 395   5                                      }                                  // 进入地址配置密码显示页面
+ 396   4                              }
+ 397   3                              else
+ 398   3                              {       // 非回显界面，满足条件未完成任务大于0，且数量不超过最大数值
+ 399   4                                      NormolChgFocus(0);                                              // 焦点位后移，条件为任务执行中，且数量不超过最大显示值
+ 400   4                              }       
+ 401   3                      }break; 
+ 402   2                      
+ 403   2                      //--------------------------------------------------------------
+ 404   2                      // 确认键               
+ 405   2                  case KEYFUN_OK:
+ 406   2                  {                                   
+ 407   3                              //修改焦点位数值状态关闭，不再闪烁
+ 408   3      //                      usCountModify = 0;
+ 409   3                              KeyMode.f_ChangeValue = OFF;            // 清除数量修改标志
+ 410   3      
+ 411   3                              //只有在未完成任务不空，并且非显示进度条时，才响应OK键。
+ 412   3      //                      if((task_unfinish_num > 0)&&(digital_led_loading == OFF))
+ 413   3                              if( (UnfinishTask.num > 0)&&(Disp.f_Loading == LOAD_MODE_OFF) )
+ 414   3                              {   //刷新数据
+ 415   4                                      //检查完成情况
+ 416   4                                      if(FinishTask.num < MAX_TASK_NUM)       //最大任务数2
+ 417   4                                      {
+ 418   5                                              //把数据存入已完成的数据区
+ 419   5                                              // 第一个指针是要保存区的地址，第二个指针是数据区的地址
+ 420   5                                              PutFinishedToStack_Com(&FinishTask.info[FinishTask.num],&UnfinishTask.info[0]);                                 
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 8   
+
+ 421   5                                              // 判断是否有满箱标志
+ 422   5                                              if(Key.f_IsFnKeyPressed == ON)  
+ 423   5                                                      { FinishTask.info[FinishTask.num].full = 1; }//{ taks_finished_Full[0] = 1; }                                           
+ 424   5                                              else{ FinishTask.info[FinishTask.num].full = 0; }//{ taks_finished_Full[0] = 0; }
+ 425   5                                              FinishTask.num++;                                       // 完成任务数+1
+ 426   5      
+ 427   5                                              //完成的数据做历史存储以供回显使用
+ 428   5                                              PutFinishedToStack();
+ 429   5                                              //原先有2个任务队列，则未完成块中作处理
+ 430   5      //                                      if(task_unfinish_num == 2)
+ 431   5                                              if(UnfinishTask.num == 2)
+ 432   5                                              {
+ 433   6                                                      //当未完成块的数据=2时，数据前移 ，后往前挪                                                                             
+ 434   6                                                      // 第一个指针是要保存区的地址，第二个指针是数据区的地址
+ 435   6                                                      PutFinishedToStack_Com(&UnfinishTask.info[0],&UnfinishTask.info[1]);
+ 436   6                                                      OsCmdSet.TaskCurCount = UnfinishTask.info[0].count ;            // 保存当前数量
+ 437   6                                              }
+ 438   5      //                                      task_unfinish_num--;
+ 439   5                                              UnfinishTask.num--;
+ 440   5                                      }
+ 441   4      
+ 442   4                                      //该标志下，按下OK则后面任务全部清除
+ 443   4                                      if(Key.f_IsFnKeyPressed == ON)
+ 444   4                                      {
+ 445   5      //                                      task_unupdate_num = 0;                     // 剩余任务清0
+ 446   5      //                                      task_unfinish_num = 0;
+ 447   5                                              UnfinishTask.num     = 0;                  // 未完成任务清0
+ 448   5                                              UnfinishTask.remain  = 0;                  // 剩余任务清0
+ 449   5                                              Key.f_IsFnKeyPressed = OFF;        // 清除Fn长按标志
+ 450   5                                      }
+ 451   4                                      //本次作业一全部完成任务，灯灭，数据清零 ，根据参数F1亮任务完成的颜色
+ 452   4      //                              if(task_unupdate_num == 0 && task_unfinish_num ==0)      
+ 453   4                                      if( (UnfinishTask.num == 0) && (UnfinishTask.remain == 0) )             // 未完成为0，剩余为0，则认为任务为空           
+ 454   4                                      {                                       
+ 455   5                                              Display_Clear();                                                          // 清除显示 // 包含清除数码管，灯组，清回显标志和配置标志，数值更改标志
+ 456   5                                              led.light_type = para.str.FinishedLED;            // 任务完成根据参数F1亮对应的灯色
+ 457   5                                              led.flash_mode = LED_FLASH_MODE_ALWAYS;           // 常亮模式
+ 458   5                                      }
+ 459   4                                      //本次作业还有待拾取任务，进行拉条显示
+ 460   4                                      else                                                                                    
+ 461   4                                      {       //任务缓冲区空或者主机还有剩余任务,显示-------                                  
+ 462   5      //                                      if(task_unfinish_num > 0)
+ 463   5                                              if(UnfinishTask.num > 0)
+ 464   5                                              {       
+ 465   6                                                      Disp.f_Loading              = LOAD_MODE_SHORT;    // 置短时间载入标志
+ 466   6      //                                              Disp.TatolTimeRefresh32 = (para.str.WtTime+1)*100;       // LOADING短时间
+ 467   6                                                      Disp.TatolTimeRefresh16 = (para.str.WtTime+1); // 短时间
+ 468   6                                                      
+ 469   6                                              }
+ 470   5                                              else //if(task_unupdate_num > 0)                                //本次作业还有任务，但是任务还没下发到本设备中，显示------
+ 471   5                                              {
+ 472   6                                                      Disp.f_Loading              = LOAD_MODE_LONG;                    // 置长时间载入标志
+ 473   6      //                                              Disp.TatolTimeRefresh32 = DIGITAL_LED_LOAD_TIME_LONG;//LOADING长时间
+ 474   6                                                      Disp.TatolTimeRefresh16 = DIGITAL_LED_LOAD_TIME_LONG;//LOADING长时间                                            
+ 475   6                                              }
+ 476   5      
+ 477   5                                              os_time.Base_100ms= TIMER_BASE_100MS;                   // 对100ms基准值重设定
+ 478   5                                              Disp.TimeRefresh  = DIGITAL_LED_LOAD_CNT_PER;   // 进度条时间赋值;
+ 479   5                                              Disp.Shift        = DIGILED_FIRST+1;                    // 先亮"-"
+ 480   5                                              //先保存当前哪组灯亮，在设置拉条时没有灯亮
+ 481   5                                              led.light_type_BK = led.light_type;                             // 备份灯颜色
+ 482   5                                              led.light_type    = LED_NONE;                                   // 关灯
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 9   
+
+ 483   5                                              SetDispPage( PAGE_WAIT );                                               // 设置进度条显示页面
+ 484   5                                      }
+ 485   4                              }
+ 486   3                              else if(KeyMode.f_BackDisp == ON) //回显状态下，按OK键取消回显
+ 487   3                              {
+ 488   4                                      Display_Clear();                                         // 清除显示 // 包含清除数码管，灯组，清回显标志和配置标志，数值更改标志                                
+ 489   4                              }               
+ 490   3                      }break;                                                                         
+ 491   2                      default:        break;                                                                  
+ 492   2              }                                       
+ 493   1      }
+ 494          
+ 495          /************************************************************************
+ 496          * 退出配置模式
+ 497          ************************************************************************/
+ 498          void    Exit_Cfg_Mode(void)     
+ 499          {
+ 500   1              INT8U i;
+ 501   1      
+ 502   1              Display_Clear();                                                        // 清除显示 // 包含清除数码管，灯组，清回显标志和配置标志，数值更改标志
+ 503   1              if (Disp.TatolTimeRefresh8 == 0) return;    // 3s超时退出不保存
+ 504   1      
+ 505   1              // 备份区的数据写入主存区
+ 506   1              for (i = 0; i < MAX_CFGPARA; i++)
+ 507   1              { para.Byte[i] = para_bk.Byte[i]; }                     // 备份区的数据写入主存区
+ 508   1      
+ 509   1              SaveParaToBlock();                                                      // 判断参数是否在范围内(如不再则恢复)，保存参数 
+ 510   1      }       
+ 511          
+ 512          
+ 513          /*******************************************************************************
+ 514                              配置页面，改变对应焦点位的数值 ，并保证在范围内
+ 515          input:  sts = 0则值键1，非0则加1
+ 516          Disp.MenuPage 对应哪个参数，Disp.Focus对应的显示焦点位
+ 517          表 对应的设置显示页面                                       
+ 518          *******************************************************************************/
+ 519          INT8U CODE      CfgPageDB[MAX_CFGPARA]={ PAGE_CFGADDR,PAGE_CFGFUNC1,PAGE_CFGFUNC2,PAGE_CFGFUNC3,PAGE_CFGFUNC4,P
+             -AGE_CFGFUNC5 };
+ 520          
+ 521          void CfgChgParaVal(INT8U sts)
+ 522          {
+ 523   1      
+ 524   1              INT8U   rev,max;
+ 525   1              INT8VU   *ptr;
+ 526   1              INT16U   addr;
+ 527   1              switch(Disp.MenuPage)
+ 528   1              {
+ 529   2                       case 0:   max = 9;        Calc_Value3(0,0,para_bk.str.address);
+ 530   2                                         if(Disp.Focus > 2){ Disp.Focus = 2; }
+ 531   2                                         else if(Disp.Focus == 0){ max = 2; } 
+ 532   2                                         ptr = &Buffer[Disp.Focus];              
+ 533   2                                         break;
+ 534   2                       case 1:   ptr = &para_bk.str.FinishedLED;      max = MAX_FINISHEDLED;  break;
+ 535   2                       case 2:   ptr = &para_bk.str.WtTime;           max = MAX_WTTIME;               break;
+ 536   2                       case 3:   ptr = &para_bk.str.FnDefine;         max = MAX_FNDEFINE;             break;
+ 537   2                       case 4:   ptr = &para_bk.str.DispMode;         max = MAX_DISPMODE;             break;
+ 538   2                       default:  ptr = &para_bk.str.KeyProssLED;  max = MAX_KEYPROCLED;       break;
+ 539   2              }
+ 540   1              
+ 541   1              rev =   *ptr;
+ 542   1              if(sts != 0){ rev++; }
+ 543   1              else            { rev--; }
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 10  
+
+ 544   1              
+ 545   1              if(rev > max)
+ 546   1              {
+ 547   2                       if(sts != 0) rev = 0;
+ 548   2                       else             rev = max;
+ 549   2              }
+ 550   1              *ptr = rev;
+ 551   1              // 地址对应写入存储器
+ 552   1              if(Disp.MenuPage == 0)
+ 553   1              { 
+ 554   2                      addr  = Buffer[0]*100 + Buffer[1]*10 + Buffer[2]; 
+ 555   2                      if(addr > MAX_ADDR)
+ 556   2                      { addr = MAX_ADDR;}
+ 557   2                      para_bk.str.address = addr;
+ 558   2              }
+ 559   1                      
+ 560   1              Disp.f_OffDisp              = OFF;                                 // 先显示数值
+ 561   1              Disp.TatolTimeRefresh8 = TIMER_CONFIG;             // 设置超时时间      
+ 562   1              SetDispPage( CfgPageDB[Disp.MenuPage]  );          // 设置页面，置更新标志
+ 563   1      }
+ 564          /*******************************************************************************
+ 565                                      配置页面，页面变更      
+ 566          input:  sts = 0则值键1，非0则加1
+ 567          Disp.MenuPage 对应哪个参数，Disp.Focus对应的显示焦点位  
+ 568          表对应参数的焦点位最大数值                                                 
+ 569          *******************************************************************************/
+ 570          INT8U CODE                CfgParaFocusDb[MAX_CFGPARA] = {3,1,1,1,1,1} ;          // 对应数码管的位置
+ 571          
+ 572          void CfgChgPage(INT8U sts)
+ 573          {
+ 574   1              if(sts != 0)
+ 575   1              { 
+ 576   2                      if( ++Disp.MenuPage >= MAX_CFGPARA )
+ 577   2                      { Disp.MenuPage = 0; }                          // 功能参数页面切换   
+ 578   2              }
+ 579   1              else
+ 580   1              {
+ 581   2                      if( Disp.MenuPage-- == 0 )
+ 582   2                      { Disp.MenuPage = MAX_CFGPARA-1; }      // 功能参数页面切换      
+ 583   2              }
+ 584   1                                      
+ 585   1              Disp.Focus = CfgParaFocusDb[Disp.MenuPage]-1;   // 焦点位初始化
+ 586   1              
+ 587   1              Disp.f_OffDisp              = OFF;                                  // 先显示数值
+ 588   1              Disp.TatolTimeRefresh8 = TIMER_CONFIG;                  // 超时计数器初始化
+ 589   1              SetDispPage( CfgPageDB[Disp.MenuPage]  );               // 设置页面，置更新标志
+ 590   1      }
+ 591          /*******************************************************************************
+ 592                                      配置页面，数值的焦点位变更      
+ 593          input:  sts = 0则值键1，非0则加1
+ 594          Disp.MenuPage 对应哪个参数，Disp.Focus对应的显示焦点位  
+ 595          表对应参数的焦点位最大数值                                                            
+ 596          *******************************************************************************/
+ 597          
+ 598          void CfgChgFocus(INT8U sts)
+ 599          {
+ 600   1              if(sts != 0)
+ 601   1              { 
+ 602   2                      if( ++Disp.Focus >= CfgParaFocusDb[Disp.MenuPage] )
+ 603   2                      { Disp.Focus = 0; }  
+ 604   2              }
+ 605   1              else
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 11  
+
+ 606   1              {
+ 607   2              #if(MACHINETYPE == A2_820)
+                              if( Disp.Focus-- == 1 )
+                      #else
+ 610   2                      if( Disp.Focus-- == 0 )
+ 611   2              #endif
+ 612   2                      { Disp.Focus = CfgParaFocusDb[Disp.MenuPage]-1; }     
+ 613   2              }
+ 614   1              if(Disp.MenuPage == 0)                          
+ 615   1              { Disp.f_OffDisp = ON; }                                           // 先显示灭
+ 616   1              Disp.TatolTimeRefresh8 = TIMER_CONFIG;             // 超时计数器初始化
+ 617   1              SetDispPage( CfgPageDB[Disp.MenuPage] );           // 设置页面，置更新标志      
+ 618   1      }
+ 619          
+ 620          /************************************************************************
+ 621          * 配置功能模式下，按键处理函数
+ 622          * 输入按键值
+ 623          ************************************************************************/
+ 624          void    KeyConfigFun(INT8U keyvalue)
+ 625          {
+ 626   1              //==================================================================                    
+ 627   1              switch( keyvalue )
+ 628   1              {       
+ 629   2                      //--------------------------------------------------------------
+ 630   2                      // 功能键  长按完成退出功能,短按完成参数页面切换功能
+ 631   2                      case KEYFUN_FUNC:
+ 632   2                      {                       
+ 633   3                              if(Key.f_LongOnce == TRUE)
+ 634   3                              {
+ 635   4                                      Key.f_LongOnce = FALSE;         // 只执行一次
+ 636   4                                      Exit_Cfg_Mode();                        // 退出配置模式，保存参数值，恢复显示
+ 637   4                              }
+ 638   3                              else
+ 639   3                              { CfgChgPage(1); }                              // 功能参数页面切换                                                             
+ 640   3                      }break;                                         
+ 641   2                      //--------------------------------------------------------------
+ 642   2                      // -1           
+ 643   2                      case KEYFUN_SUB :
+ 644   2                      {                                               
+ 645   3                              CfgChgParaVal(0);                         //改变对应的值，并保证在范围内                        
+ 646   3                      }break;         
+ 647   2                      //--------------------------------------------------------------
+ 648   2      //              // +1
+ 649   2      //              case KEYFUN_ADD   :
+ 650   2      //              {                                                               
+ 651   2      //                      CfgParaValChg(1);                        //改变对应的值，并保证在范围内
+ 652   2      //              }break;                                                 
+ 653   2      //              //--------------------------------------------------------------
+ 654   2                      // 向前键 
+ 655   2      //              case KEYFUN_FORWARD :
+ 656   2      //              {                                                               
+ 657   2      //                      CfgFocusChg(1);                         //改变对应的焦点位，并保证在范围内
+ 658   2      //              }break;         
+ 659   2                      //--------------------------------------------------------------
+ 660   2                      // 向后键       
+ 661   2                  case KEYFUN_BACK:
+ 662   2                  {                   
+ 663   3                              CfgChgFocus(0);                         //改变对应的焦点位，并保证在范围内      
+ 664   3                      }break;                 
+ 665   2                      //--------------------------------------------------------------
+ 666   2                      // 确认键               
+ 667   2                  case KEYFUN_OK:
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 12  
+
+ 668   2                  {                                   
+ 669   3                               Exit_Cfg_Mode();               // 退出配置模式
+ 670   3                      }break; 
+ 671   2                      //--------------------------------------------------------------
+ 672   2                      // 其他键                                                                       
+ 673   2                      default:        break;                                                                                          
+ 674   2              }                                       
+ 675   1      }
+ 676          /************************************************************************
+ 677          * 按键功能执行子程序
+ 678          * 输入按键值，使能LCD刷新标志
+ 679          ************************************************************************/
+ 680          void Key_Fun(INT8U keyvalue)
+ 681          {               
+ 682   1      //      if((FALSE == Key.f_Long)&&(KEYFUN_OK != keyvalue))
+ 683   1      //      { AlarmSet(ALMKEY); }           //蜂鸣器叫声
+ 684   1                      
+ 685   1              // 判断是否主机设置站址
+ 686   1              if(OsCmdSet.beSettingAddr == 1)
+ 687   1              { 
+ 688   2                      //任意键排都记下地址
+ 689   2      //              address = toSettedAddr; 
+ 690   2                      para.str.address = para_bk.str.address; // 保存设定的地址
+ 691   2                      SaveParaToBlock();                                              // 判断参数是否在范围内(如不再则恢复)，保存参数
+ 692   2      
+ 693   2                      led.light_type = LED_BLUE;                              // 接收前亮第一组灯，接收后亮第二组灯
+ 694   2                      OsCmdSet.beSettingAddr  = 2;                    // 说明站址设定已经按下按键确认
+ 695   2              } 
+ 696   1      
+ 697   1              //配置状态
+ 698   1              if ((KeyMode.f_Config == ON))
+ 699   1              { KeyConfigFun(keyvalue); return; }
+ 700   1      
+ 701   1              //非配置状态
+ 702   1              KeyNormolFun(keyvalue);
+ 703   1      }
+ 704          
+ 705          /************************************************************************
+ 706          * 获取按键值
+ 707          * 返回键值               // 读取一次接近3ms
+ 708          ************************************************************************/
+ 709          
+ 710          
+ 711          INT8U   Scan_Val(void)
+ 712          {
+ 713   1      
+ 714   1              INT8U   keyval = KEYFUN_NOKEY;
+ 715   1              //-------------------------------------------   
+ 716   1               // 置IO口为1
+ 717   1       #if    ( (MACHINETYPE == P0_910U)||(MACHINETYPE == A0_820) ) 
+ 718   1               KEY_OK = 1;
+ 719   1               NOP;  NOP;      NOP; NOP; NOP;
+ 720   1      
+ 721   1              if (KEY_OK == 0)                                                //确认
+ 722   1              { keyval = KEYFUN_OK; }
+ 723   1       #else
+                       KEY_OK = KEY_SUB = KEY_SHT = KEY_CFG = 1;
+                       NOP;  NOP;      NOP; NOP; NOP;
+              
+                      if (KEY_OK == 0)                                                //确认
+                      { keyval = KEYFUN_OK; }
+                      else if (KEY_SUB == 0)                                  //减1
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 13  
+
+                      { keyval = KEYFUN_SUB; }
+                      else if (KEY_SHT == 0)                              //移位
+                      { keyval = KEYFUN_BACK; }
+                      else if (KEY_CFG == 0)                                  //功能
+                      { keyval = KEYFUN_FUNC; }
+               #endif
+ 736   1              //-------------------------------------------           
+ 737   1              return( keyval );
+ 738   1      }
+ 739          
+ 740          /************************************************************************
+ 741          ** 功能描述： Key scan and Key Function module
+ 742          ************************************************************************/
+ 743          void Key_Scan(void)
+ 744          {               
+ 745   1              INT8U   keyval;
+ 746   1              /*------------------------------------------------------------------*/
+ 747   1              // 系统锁定或接收到数据，按键无效
+ 748   1              if( (OsCmdSet.SystemLocked == ON) )//||(uart.rIndex != 0) ){return;}
+ 749   1              {return;}
+ 750   1              //扫描标志使能确认,定时器32ms使能一次
+ 751   1              if(Key.f_Enable == FALSE){return;}
+ 752   1              Key.f_Enable = FALSE;           //扫描则清使能标志
+ 753   1      //      Key.ScanCnt++;                          //按键扫描计数          
+ 754   1              /*------------------------------------------------------------------*/
+ 755   1              //键值扫描 ，得到对应按键值
+ 756   1              keyval = Scan_Val();                                    
+ 757   1              /*------------------------------------------------------------------*/
+ 758   1              //如果两次键值不一致，保存键值，并返回
+ 759   1              if( keyval != Key.Backup ) { Key.Backup = keyval; return; }             
+ 760   1              /*------------------------------------------------------------------*/
+ 761   1              //如果两次键值一致，则处理
+ 762   1              if( KEYFUN_NOKEY == keyval )
+ 763   1              {       //无按键按下
+ 764   2                      if( (TRUE == Key.f_Short)&&(FALSE == Key.f_Long) )
+ 765   2                      {
+ 766   3                         if(Key.BackProssVal == KEYFUN_FUNC)
+ 767   3                              { Key_Fun(KEYFUN_FUNC); }                       //执行短按功能键
+ 768   3                         else if((Key.BackProssVal == KEYFUN_SUB)&&(UnfinishTask.num > 0))
+ 769   3                         { Key_Fun(KEYFUN_SUB); }                             //执行短按-1键
+ 770   3                      }
+ 771   2                      
+ 772   2                      Key.f_Short    = FALSE ;                        //短按释放
+ 773   2                      Key.f_LongOnce = FALSE ;                        //长按一次释放  
+ 774   2                      Key.f_Long         = FALSE;                             //长按释放              
+ 775   2                      Key.BackProssVal = keyval;                      //备份键值
+ 776   2                      return;                                                         // 返回
+ 777   2              }
+ 778   1              // 未释放，处理短按
+ 779   1              if( FALSE == Key.f_Short )
+ 780   1              {       //第一次按下    
+ 781   2                      Key.f_Short = TRUE;                                     //短按有效
+ 782   2                      Key.OnCnt       = 0x00;                                 //按下时间初始化
+ 783   2      //              if( KEYFUN_FUNC != keyval )                     // 功能键优先长按
+ 784   2                      if( ((KEYFUN_FUNC != keyval)&&(KEYFUN_SUB != keyval))
+ 785   2                        ||((KEYFUN_SUB == keyval)&&(UnfinishTask.num == 0)) )                 // 功能键和-1键优先长按
+ 786   2                      { Key_Fun(keyval); }                            //执行按键功能
+ 787   2                              
+ 788   2                      Key.BackProssVal = keyval;                      //备份键值
+ 789   2                      return;                                                         // 返回
+ 790   2              }
+ 791   1              //长按住不释放，某些键有效                      
+C51 COMPILER V9.00   KEY                                                                   10/09/2016 16:12:15 PAGE 14  
+
+ 792   1              if( TRUE == Key.f_Long )
+ 793   1              {       //长按住不释放，某些键有效              
+ 794   2      //              if( Key.OnCnt++ >= KEYLONGPROTIME )
+ 795   2      //              {
+ 796   2      //                      Key.OnCnt       = 0x00;                         //间隔时间初始化
+ 797   2      //                      if( (KEYFUN_ADD == keyval)||(KEYFUN_SUB == keyval) )                    
+ 798   2      //                      { Key_Fun(keyval); }                    //间隔一定时间执行一次按键功能  
+ 799   2      //              }
+ 800   2                      return;                                                         // 返回
+ 801   2              }
+ 802   1              //长按有效，只执行一次
+ 803   1              if( Key.OnCnt++ >= KEYLONGTIME )
+ 804   1              {                               
+ 805   2                      Key.f_LongOnce  = TRUE;                         //长按一次有效
+ 806   2                      Key.OnCnt       = 0x00;                                 //间隔时间初始化
+ 807   2      
+ 808   2                      // Fn键长按和”-“键长按且未完成任务非0 ，才处理
+ 809   2                      if( (KEYFUN_FUNC == keyval)||((KEYFUN_SUB == keyval)&&(UnfinishTask.num > 0)) )
+ 810   2                      { Key_Fun(keyval); }                            //处理长按功能键
+ 811   2      
+ 812   2                      Key.f_Long      = TRUE;                         //长按有效
+ 813   2              }
+ 814   1      }
+ 815          /*******************************************************************************
+ 816                                                                          END                                     
+ 817          *******************************************************************************/
+ 818          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1811    ----
+   CONSTANT SIZE    =     12    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      17
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

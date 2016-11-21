@@ -1,0 +1,9 @@
+".\eeprom.obj",
+".\key.obj",
+".\led.obj",
+".\main.obj",
+".\uart.obj",
+".\process.obj",
+".\crc.obj" 
+TO "920U-P3" 
+RAMSIZE(256) 

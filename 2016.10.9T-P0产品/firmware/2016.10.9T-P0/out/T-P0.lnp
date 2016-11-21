@@ -1,0 +1,10 @@
+"..\out\STARTUP.obj",
+"..\out\crc.obj",
+"..\out\eeprom.obj",
+"..\out\key.obj",
+"..\out\led.obj",
+"..\out\main.obj",
+"..\out\process.obj",
+"..\out\uart.obj" 
+TO "..\out\T-P0" 
+PRINT(".\T-P0.m51") RAMSIZE(256) 
